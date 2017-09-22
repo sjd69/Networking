@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #define BUFSIZE 1024
 #define FILENAMESIZE 100
@@ -17,6 +18,7 @@ int main(int argc, char * argv[]) {
     struct sockaddr_in my_addr;
     struct sockaddr clientaddr;
     socklen_t addrlen;
+    char buffer[BUFSIZE];
 
     /* parse command line args */
     if (argc != 3) {
@@ -32,17 +34,17 @@ int main(int argc, char * argv[]) {
     }
 
     if (argv[1][0] != 'k' && argv[1][0] != 'u') {
-      fprintf(stderr, "usage: http_server1 k|u port\n");
-      exit(-1);
+        fprintf(stderr, "usage: http_server1 k|u port\n");
+        exit(-1);
     }
 
 
     /* initialize and make socket */
 
     if (argv[1][0] == 'k')
-      minet_init(MINET_KERNEL);
+        minet_init(MINET_KERNEL);
     else
-      minet_init(MINET_USER);
+        minet_init(MINET_USER);
 
 
     sock = minet_socket(SOCK_STREAM);
@@ -69,19 +71,17 @@ int main(int argc, char * argv[]) {
     /* connection handling loop: wait to accept connection */
 
     while (1) {
-	    /* handle connections */
+	  /* handle connections */
       connect = minet_accept(sock, &my_addr);
       if (connect < 0)
             continue;
 
       fprintf(stderr, "Connected\n");
-      //rc = handle_connection(sock);
-        
-      minet_close(connect);
+      rc = handle_connection(connect, buffer);
     }
 }
 
-int handle_connection(int sock) {
+int handle_connection(int sock, char* buffer) {
     bool ok = false;
 
     const char * ok_response_f = "HTTP/1.0 200 OK\r\n"	\
@@ -96,22 +96,41 @@ int handle_connection(int sock) {
 
     /* first read loop -- get request and headers*/
 
+    int in = minet_read(sock, buffer, BUFSIZE);
+    fprintf(stderr, "Diagnostic Output:\r\n%s\r\n", buffer);
+
     /* parse request to get file name */
     /* Assumption: this is a GET request and filename contains no spaces*/
 
+    int start = 4, end, size;
+    char* path;
+    for (end = start; buffer[end] != ' '; end++);
+    path = buffer + 4;
+    size = end - start;
+
     /* try opening the file */
+
+    int file = fopen(path, size, O_RDONLY);
+    ok = file != -1;
 
     /* send response */
     if (ok) {
-	/* send headers */
-
-	/* send file */
+	    /* send headers */
+        minet_write(sock, ok_response_f, sizeof ok_response_f);
+	    /* send file */
+        size = read(file, buffer, BUFSIZE);
+        while (size > 0) {
+            minet_write(sock, file, size);
+            size = read(file, buffer, BUFSIZE);
+        }
 
     } else {
-	// send error response
+	    // send error response
+        minet_write(sock, notok_response, sizeof notok_response);
     }
 
     /* close socket and free space */
+    minet_close(sock);
 
     if (ok) {
 	return 0;
