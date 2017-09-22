@@ -8,7 +8,7 @@
 #define BUFSIZE 1024
 #define FILENAMESIZE 100
 
-int handle_connection(int sock);
+int handle_connection(int sock, char* buffer);
 
 int main(int argc, char * argv[]) {
     int server_port = -1;
@@ -107,26 +107,27 @@ int handle_connection(int sock, char* buffer) {
     for (end = start; buffer[end] != ' '; end++);
     path = buffer + 4;
     size = end - start;
+    path[size] = '\0';
 
     /* try opening the file */
 
-    int file = fopen(path, size, O_RDONLY);
+    int file = open(path, size, O_RDONLY);
     ok = file != -1;
 
     /* send response */
     if (ok) {
 	    /* send headers */
-        minet_write(sock, ok_response_f, sizeof ok_response_f);
+      minet_write(sock, (char*) ok_response_f, 66);
 	    /* send file */
         size = read(file, buffer, BUFSIZE);
         while (size > 0) {
-            minet_write(sock, file, size);
+            minet_write(sock, buffer, size);
             size = read(file, buffer, BUFSIZE);
         }
 
     } else {
 	    // send error response
-        minet_write(sock, notok_response, sizeof notok_response);
+      minet_write(sock,(char*) notok_response, 137);
     }
 
     /* close socket and free space */
