@@ -14,7 +14,7 @@ int main(int argc, char * argv[]) {
     int rc          =  0;
     int sock        = -1;
     int connect     = -1;
-    struct addrinfo hints, *res;
+    struct sockaddr_in my_addr;
     struct sockaddr clientaddr;
     socklen_t addrlen;
 
@@ -31,26 +31,36 @@ int main(int argc, char * argv[]) {
 	exit(-1);
     }
 
-    /* get address info */
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
+    if (argv[1][0] != 'k' && argv[1][0] != 'u') {
+      fprintf(stderr, "usage: http_server1 k|u port\n");
+      exit(-1);
+    }
 
-    minet_getaddrinfo(NULL, server_port, &hints, &res);
 
     /* initialize and make socket */
 
-    sock = minet_socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (argv[1][0] == 'k')
+      minet_init(MINET_KERNEL);
+    else
+      minet_init(MINET_USER);
+
+
+    sock = minet_socket(SOCK_STREAM);
     if (sock < 0) {
-        fprintf(stderr, "Unable to initialize socket.");
+        fprintf(stderr, "Unable to initialize socket.\n");
         exit(-1);
     }
 
     /* set server address*/
+
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_port = htons(server_port);     // short, network byte order
+    my_addr.sin_addr.s_addr = INADDR_ANY;
+    memset(my_addr.sin_zero, '\0', sizeof my_addr.sin_zero);
+
     /* bind listening socket */
 
-    minet_bind(sock, res->ai_addr, res->addr_len);
+    minet_bind(sock, &my_addr);
 
     /* start listening */
 
@@ -60,14 +70,14 @@ int main(int argc, char * argv[]) {
 
     while (1) {
 	    /* handle connections */
-        connect = minet_accept(sock);
-        if (connect < 0)
+      connect = minet_accept(sock, &my_addr);
+      if (connect < 0)
             continue;
 
-        fprintf(stderr, "Connected\n");
-        //rc = handle_connection(sock);
+      fprintf(stderr, "Connected\n");
+      //rc = handle_connection(sock);
         
-        minet_close(connect);
+      minet_close(connect);
     }
 }
 
