@@ -1,8 +1,12 @@
 #include "minet_socket.h"
 #include <stdlib.h>
 #include <ctype.h>
+#include <string>
+#include <iostream>
 
 #define BUFSIZE 1024
+
+using namespace std;
 
 int main(int argc, char * argv[]) {
 
@@ -12,14 +16,15 @@ int main(int argc, char * argv[]) {
     char * req         = NULL;
     bool ok            = false;
 
-	char* buf[BUFSIZE]
+	char  buf[BUFSIZE];
 	int socket_fd;
 	struct hostent* remote_host;
 	struct sockaddr_in socket_addr;
 	fd_set fds;
 	int ret;
 	string response = "";
-	string status = "";
+	string header = "";
+	string status;
 	string::size_type pos;
 
 
@@ -50,7 +55,7 @@ int main(int argc, char * argv[]) {
 	socket_fd = minet_socket(SOCK_STREAM);
 
 	if (socket_fd == -1) {
-		fprintf(sterr, "Error creating socket.\n");
+		fprintf(stderr, "Error creating socket.\n");
 		free(req);
 		return -1;
 	}
@@ -79,16 +84,16 @@ int main(int argc, char * argv[]) {
 
     /* send request message */
     sprintf(req, "GET %s HTTP/1.0\r\n\r\n", server_path);
-	if (minet_write(socket_fd, req, strlen(req) < 0) {
-		fprintf(strerr, "Error sending request message.\n");
+	if (minet_write(socket_fd, req, strlen(req)) < 0) {
+		fprintf(stderr, "Error sending request message.\n");
 		free(req);
 		return -1;
 	}
 
     /* wait till socket can be read. */
     /* Hint: use select(), and ignore timeout for now. */
-	fd_zero(&fds);	//Initialize fds to null set
-	fd_set(socket_fd, &fds);
+	FD_ZERO(&fds);	//Initialize fds to null set
+	FD_SET(socket_fd, &fds);
 
 	if (minet_select(socket_fd + 1, &fds, NULL, NULL, NULL) < 0) {
 		fprintf(stderr, "Error selecting socket.\n");
@@ -103,11 +108,11 @@ int main(int argc, char * argv[]) {
 
 	while (ret != 0) {
 		buf[ret] = '\0';
-		ret += string(buf);
+		response += string(buf);
 		pos = response.find("\r\n\r\n", 0);
 
 		if (pos != string::npos) {
-			header = resposne.substr(0, pos);
+			header = response.substr(0, pos);
 			response = response.substr(pos + 4);
 			break;
 		}
@@ -129,17 +134,17 @@ int main(int argc, char * argv[]) {
 	}
 	else {
 		ok = false;
-		cout << heade + "\r\n\r\n" + resposne;
+		cout << header + "\r\n\r\n" + response;
 	}
     /* print first part of response: header, error code, etc. */
 
     /* second read loop -- print out the rest of the response: real web content */
 	while ((ret = minet_read(socket_fd, buf, BUFSIZE - 1)) > 0) {
-		buf[result] = '\0';
+		buf[ret] = '\0';
 		if (ok) {
-			fprintf("%s", buf);
+			printf("%s", buf);
 		} else {
-			fprintf(strerr, buf);
+			fprintf(stderr, buf);
 		}
 	}
 
