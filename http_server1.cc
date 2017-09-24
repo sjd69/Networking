@@ -117,7 +117,7 @@ int handle_connection(int sock, char* buffer) {
     /* send response */
     if (ok) {
 	    /* send headers */
-      minet_write(sock, (char*) ok_response_f, 66);
+        minet_write(sock, (char*) ok_response_f, 66);
 	    /* send file */
         size = read(file, buffer, BUFSIZE);
         while (size > 0) {
@@ -127,7 +127,7 @@ int handle_connection(int sock, char* buffer) {
 
     } else {
 	    // send error response
-      minet_write(sock,(char*) notok_response, 137);
+        minet_write(sock,(char*) notok_response, 137);
     }
 
     /* close socket and free space */
