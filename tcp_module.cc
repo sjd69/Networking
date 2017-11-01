@@ -80,15 +80,24 @@ int main(int argc, char * argv[]) {
 
 	        if (event.handle == mux) {
 		        // ip packet has arrived!
-
+                cerr << "Packet received\n";
                 Packet p;
                 MinetReceive(mux, p);
-                TCPHeader tcp = (TCPHeader&) p.PopBackHeader();
-                char flags;
+                p.ExtractHeaderFromPayload<TCPHeader>(20);
+                TCPHeader h = p.FindHeader(Headers::TCPHeader);
+                unsigned char flags;
+                unsigned short sourcePort, destPort;
                 h.GetFlags(flags);
+                h.GetSourcePort(sourcePort);
+                h.GetDestPort(destPort);
+                cerr << "flags: " << (unsigned int) flags << "\n";
+                cerr << "Source Port: " << sourcePort << "\n";
+                cerr << "Destination Port: " << destPort << "\n";
                 if (IS_SYN(flags)) {
-                    IPHeader ih = (IPHeader&) p.PopFrontHeader();
-                    cerr << "SYN packet received from " << ih.GetSourceIP() << "\n";
+                    IPHeader ih = p.FindHeader(Headers::IPHeader);
+                    IPAddress addr;
+                    ih.GetSourceIP(addr);
+                    cerr << "SYN packet received from " << addr << "\n";
                 }
 	        }
 
@@ -99,7 +108,7 @@ int main(int argc, char * argv[]) {
 
 	    if (event.eventtype == MinetEvent::Timeout) {
 	        // timeout ! probably need to resend some packets
-            cerr << "Timer\n";
+                //cerr << "Timer\n";
 	    }
 
     }
