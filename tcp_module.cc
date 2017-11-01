@@ -83,26 +83,53 @@ int main(int argc, char * argv[]) {
                 cerr << "Packet received\n";
                 Packet p;
                 MinetReceive(mux, p);
-                p.ExtractHeaderFromPayload<TCPHeader>(20);
-                TCPHeader h = p.FindHeader(Headers::TCPHeader);
+                p.ExtractHeaderFromPayload<TCPHeader>(TCP_HEADER_BASE_LENGTH);
+                TCPHeader th = p.FindHeader(Headers::TCPHeader);
+                IPHeader ih = p.FindHeader(Headers::IPHeader);
+                IPAddress addr;
+                ih.GetSourceIP(addr);
                 unsigned char flags;
-                unsigned short sourcePort, destPort;
-                h.GetFlags(flags);
-                h.GetSourcePort(sourcePort);
-                h.GetDestPort(destPort);
-                cerr << "flags: " << (unsigned int) flags << "\n";
-                cerr << "Source Port: " << sourcePort << "\n";
-                cerr << "Destination Port: " << destPort << "\n";
+                unsigned short srcPort, destPort;
+                th.GetFlags(flags);
+                th.GetSourcePort(destPort);
+                th.GetDestPort(srcPort);
                 if (IS_SYN(flags)) {
-                    IPHeader ih = p.FindHeader(Headers::IPHeader);
-                    IPAddress addr;
+                    // TODO After network facing complete, implement check for server socket
+
+                    TCPHeader tcpResp;
+                    SETACK(flags);
+                    tcpResp.SetFlags(flags);
+                    int dSeq;
+                    tcpResp.GetSeqNum(dSeq);
+                    dSeq += 1;
+                    tcpResp.SetAckNum();
+                    sSeq = rand();
+                    tcpResp.setSeqNum();
+                    tcpResp.SetSourcePort(srcPort);
+                    tcpResp.SetDestPort(destPort);
+
+                    IPHeader ipResp;
+                    ipResp.SetProtocol(IP_PROTO_TCP);
+                    ipResp.SetDestIP(addr);
+                    ih.GetDestIP(addr); // TODO Implement better source of our IP address
+                    ipResp.SetSourceIP(addr);
+                    ipResp.SetLength(TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH);
                     ih.GetSourceIP(addr);
-                    cerr << "SYN packet received from " << addr << "\n";
+
+                    Packet resp;
+                    resp.pushFrontHeader(ipResp);
+                    resp.pushBackHeader(tcpResp);
+
+                    MinetSend(mux, p);
+
+                    // TODO Setup for accept()
+                    ih.GetSourceIP(addr);
+                    cerr << "Connection established with " << addr << "\n";
                 }
 	        }
 
 	        if (event.handle == sock) {
-		        // socket request or response has arrived
+		        // socket request or tcpResponse has arrived
 	        }
 	    }
 
