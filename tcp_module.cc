@@ -82,6 +82,7 @@ int main(int argc, char * argv[]) {
 
 	        if (event.handle == mux) {
 		        // ip packet has arrived!
+                cerr << "\n";
                 cerr << "Packet received\n";
                 Packet p;
                 MinetReceive(mux, p);
@@ -102,28 +103,29 @@ int main(int argc, char * argv[]) {
                     Packet resp;
 
                     IPHeader ipResp;
-                    resp.PushFrontHeader(ipResp);
 		            ipResp.SetTotalLength(TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH);
                     ipResp.SetSourceIP(dstAddr); // TODO Implement better source of our IP address
                     ipResp.SetDestIP(srcAddr);
                     ipResp.SetProtocol(IP_PROTO_TCP);
+                    resp.PushFrontHeader(ipResp);
 
                     cerr << "No error after IPHeader\n";
 
                     TCPHeader tcpResp;
-                    resp.PushBackHeader(tcpResp);
                     unsigned int dSeq;
                     th.GetSeqNum(dSeq);
-                    //dSeq += 1;
+                    dSeq += 1;
                     tcpResp.SetAckNum(dSeq, resp);
-                    unsigned int sSeq = rand();
+                    unsigned int sSeq = 0;
                     tcpResp.SetSeqNum(sSeq, resp);
                     SET_ACK(flags);
+                    cerr << "Flags: " << flags << "\n";
                     tcpResp.SetFlags(flags, resp);
                     tcpResp.SetSourcePort(srcPort, resp);
                     tcpResp.SetDestPort(destPort, resp);
                     tcpResp.SetWinSize(MSS, resp);
                     tcpResp.SetHeaderLen(TCP_HEADER_BASE_LENGTH, resp);
+                    resp.PushBackHeader(tcpResp);
 
                     cerr << "No error after TCPHeader\n";
 
@@ -135,7 +137,11 @@ int main(int argc, char * argv[]) {
 
                     // TODO Setup for accept()
                     cerr << "Connection established with " << srcAddr << " on " << dstAddr << "\n";
-                    cerr << resp;
+
+                    ipResp.GetSourceIP(srcAddr);
+                    ipResp.GetDestIP(dstAddr);
+                    cerr << srcAddr << " -> " << dstAddr << "\n";
+                    cerr << resp << "\n";
                 } else
                     cerr << "Other packet received.";
 	        }
