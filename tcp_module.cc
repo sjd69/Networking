@@ -33,6 +33,8 @@ struct TCPState {
     }
 };
 
+#define MSS 536
+
 
 int main(int argc, char * argv[]) {
     MinetHandle mux;
@@ -86,8 +88,9 @@ int main(int argc, char * argv[]) {
                 p.ExtractHeaderFromPayload<TCPHeader>(TCP_HEADER_BASE_LENGTH);
                 TCPHeader th = p.FindHeader(Headers::TCPHeader);
                 IPHeader ih = p.FindHeader(Headers::IPHeader);
-                IPAddress addr;
-                ih.GetSourceIP(addr);
+                IPAddress srcAddr, dstAddr;
+                ih.GetSourceIP(srcAddr);
+		        ih.GetDestIP(dstAddr);
                 unsigned char flags;
                 unsigned short srcPort, destPort;
                 th.GetFlags(flags);
@@ -96,36 +99,45 @@ int main(int argc, char * argv[]) {
                 if (IS_SYN(flags)) {
                     // TODO After network facing complete, implement check for server socket
 
-                    TCPHeader tcpResp;
-                    SETACK(flags);
-                    tcpResp.SetFlags(flags);
-                    int dSeq;
-                    tcpResp.GetSeqNum(dSeq);
-                    dSeq += 1;
-                    tcpResp.SetAckNum();
-                    sSeq = rand();
-                    tcpResp.setSeqNum();
-                    tcpResp.SetSourcePort(srcPort);
-                    tcpResp.SetDestPort(destPort);
+                    Packet resp;
 
                     IPHeader ipResp;
+                    resp.PushFrontHeader(ipResp);
+		            ipResp.SetTotalLength(TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH);
+                    ipResp.SetSourceIP(dstAddr); // TODO Implement better source of our IP address
+                    ipResp.SetDestIP(srcAddr);
                     ipResp.SetProtocol(IP_PROTO_TCP);
-                    ipResp.SetDestIP(addr);
-                    ih.GetDestIP(addr); // TODO Implement better source of our IP address
-                    ipResp.SetSourceIP(addr);
-                    ipResp.SetLength(TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH);
-                    ih.GetSourceIP(addr);
 
-                    Packet resp;
-                    resp.pushFrontHeader(ipResp);
-                    resp.pushBackHeader(tcpResp);
+                    cerr << "No error after IPHeader\n";
 
-                    MinetSend(mux, p);
+                    TCPHeader tcpResp;
+                    resp.PushBackHeader(tcpResp);
+                    unsigned int dSeq;
+                    th.GetSeqNum(dSeq);
+                    //dSeq += 1;
+                    tcpResp.SetAckNum(dSeq, resp);
+                    unsigned int sSeq = rand();
+                    tcpResp.SetSeqNum(sSeq, resp);
+                    SET_ACK(flags);
+                    tcpResp.SetFlags(flags, resp);
+                    tcpResp.SetSourcePort(srcPort, resp);
+                    tcpResp.SetDestPort(destPort, resp);
+                    tcpResp.SetWinSize(MSS, resp);
+                    tcpResp.SetHeaderLen(TCP_HEADER_BASE_LENGTH, resp);
+
+                    cerr << "No error after TCPHeader\n";
+
+
+
+                    tcpResp.ComputeChecksum(resp);
+                    int e = MinetSend(mux, resp);
+		            cerr << "Response code: " << e << "\n";
 
                     // TODO Setup for accept()
-                    ih.GetSourceIP(addr);
-                    cerr << "Connection established with " << addr << "\n";
-                }
+                    cerr << "Connection established with " << srcAddr << " on " << dstAddr << "\n";
+                    cerr << resp;
+                } else
+                    cerr << "Other packet received.";
 	        }
 
 	        if (event.handle == sock) {
@@ -135,7 +147,7 @@ int main(int argc, char * argv[]) {
 
 	    if (event.eventtype == MinetEvent::Timeout) {
 	        // timeout ! probably need to resend some packets
-                //cerr << "Timer\n";
+	        //cerr << "Timer\n";
 	    }
 
     }
