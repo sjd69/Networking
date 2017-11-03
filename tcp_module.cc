@@ -35,6 +35,7 @@ struct TCPState {
 
 #define MSS 536
 
+void generateTCPHeader(TCPHeader&, Packet&, unsigned short, unsigned short, unsigned int, unsigned int, unsigned char, unsigned short);
 
 int main(int argc, char * argv[]) {
     MinetHandle mux;
@@ -100,67 +101,54 @@ int main(int argc, char * argv[]) {
                 if (IS_SYN(flags)) {
                     // TODO After network facing complete, implement check for server socket
 
-                    Packet resp;
+                    Packet p;
 
-                    IPHeader ipResp;
-                    ipResp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH);
-                    ipResp.SetSourceIP(dstAddr); // TODO Implement better source of our IP address
-                    ipResp.SetDestIP(srcAddr);
-                    ipResp.SetProtocol(IP_PROTO_TCP);
-                    resp.PushFrontHeader(ipResp);
+                    IPHeader ipp;
+                    ipp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH);
+                    ipp.SetSourceIP(dstAddr); // TODO Implement better source of our IP address
+                    ipp.SetDestIP(srcAddr);
+                    ipp.SetProtocol(IP_PROTO_TCP);
+                    p.PushFrontHeader(ipp);
 
                     cerr << "No error after IPHeader\n";
 
-                    TCPHeader tcpResp;
-                    // Source port
-                    tcpResp.SetSourcePort(srcPort, resp);
-                    // Destination prt
-                    tcpResp.SetDestPort(destPort, resp);
+                    TCPHeader h;
                     // Sequence number
                     unsigned int sSeq = 0;
-                    tcpResp.SetSeqNum(sSeq, resp);
                     // Acknowledgement number
                     unsigned int dSeq;
                     th.GetSeqNum(dSeq);
                     dSeq += 1;
-                    tcpResp.SetAckNum(dSeq, resp);
                     // TCP Header length
-                    unsigned short tcpHeaderLength = 5;
-                    tcpResp.SetHeaderLen(tcpHeaderLength, resp);
-                    // Flags
                     SET_ACK(flags);
-                    cerr << "Flags: " << (unsigned int) flags << "\n";
-                    tcpResp.SetFlags(flags, resp);
                     // Window size
                     unsigned short windowSize = MSS;
-                    tcpResp.SetWinSize(windowSize, resp);
-                    // Urgent pointer
-                    unsigned short urgentPtr = 0;
-                    tcpResp.SetUrgentPtr(urgentPtr, resp);
+                    // Generate TCP header
+                    generateTCPHeader(h, p, srcPort, destPort, sSeq, dSeq, flags, windowSize);
                     // Push to stack
-                    resp.PushBackHeader(tcpResp);
+                    p.PushBackHeader(h);
 
                     cerr << "No error after TCPHeader\n";
 
 
 
-                    tcpResp.ComputeChecksum(resp);
-                    int e = MinetSend(mux, resp);
-		            cerr << "Response code: " << e << "\n";
+                    h.ComputeChecksum(p);
+                    int e = MinetSend(mux, p);
+		            cerr << "ponse code: " << e << "\n";
 
                     // TODO Setup for accept()
                     cerr << "Connection established with " << srcAddr << " on " << dstAddr << "\n";
 
-                    ipResp.GetSourceIP(srcAddr);
-                    ipResp.GetDestIP(dstAddr);
+                    ipp.GetSourceIP(srcAddr);
+                    ipp.GetDestIP(dstAddr);
                     cerr << srcAddr << " -> " << dstAddr << "\n";
-                    cerr << resp << "\n";
+                    cerr << p << "\n";
                 } else
                     cerr << "Other packet received.";
 	        }
 
 	        if (event.handle == sock) {
-		        // socket request or tcpResponse has arrived
+		        // socket request or honse has arrived
 	        }
 	    }
 
@@ -174,4 +162,26 @@ int main(int argc, char * argv[]) {
     MinetDeinit();
 
     return 0;
+}
+
+void generateTCPHeader(TCPHeader& h, Packet& p, unsigned short srcPort, unsigned short dstPort, unsigned int seq, unsigned int ack,
+        unsigned char flags, unsigned short windowSize) {
+    // Source port
+    h.SetSourcePort(srcPort, p);
+    // Destination prt
+    h.SetDestPort(dstPort, p);
+    // Sequence number
+    h.SetSeqNum(seq, p);
+    // Acknowledgement number
+    h.SetAckNum(ack, p);
+    // TCP Header length
+    const unsigned short tcpHeaderLength = 5;
+    h.SetHeaderLen(tcpHeaderLength, p);
+    // Flags
+    h.SetFlags(flags, p);
+    // Window size
+    h.SetWinSize(windowSize, p);
+    // Urgent pointer
+    const unsigned short urgentPtr = 0;
+    h.SetUrgentPtr(urgentPtr, p);
 }
