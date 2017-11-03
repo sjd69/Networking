@@ -36,6 +36,7 @@ struct TCPState {
 #define MSS 536
 
 void generateTCPHeader(TCPHeader&, Packet&, unsigned short, unsigned short, unsigned int, unsigned int, unsigned char, unsigned short);
+void generateIPHeader(IPHeader&, IPAddress, IPAddress, unsigned short);
 
 int main(int argc, char * argv[]) {
     MinetHandle mux;
@@ -90,29 +91,29 @@ int main(int argc, char * argv[]) {
                 p.ExtractHeaderFromPayload<TCPHeader>(TCP_HEADER_BASE_LENGTH);
                 TCPHeader th = p.FindHeader(Headers::TCPHeader);
                 IPHeader ih = p.FindHeader(Headers::IPHeader);
-                IPAddress srcAddr, dstAddr;
-                ih.GetSourceIP(srcAddr);
-		        ih.GetDestIP(dstAddr);
+                IPAddress localAddr, remoteAddr;
+                ih.GetSourceIP(remoteAddr);
+		        ih.GetDestIP(localAddr);
                 unsigned char flags;
-                unsigned short srcPort, destPort;
+                unsigned short localPort, remotePort;
                 th.GetFlags(flags);
-                th.GetSourcePort(destPort);
-                th.GetDestPort(srcPort);
+                th.GetSourcePort(remotePort);
+                th.GetDestPort(localPort);
                 if (IS_SYN(flags)) {
                     // TODO After network facing complete, implement check for server socket
 
-                    Packet p;
+                    Packet resp;
 
-                    IPHeader ipp;
-                    ipp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH);
-                    ipp.SetSourceIP(dstAddr); // TODO Implement better source of our IP address
-                    ipp.SetDestIP(srcAddr);
-                    ipp.SetProtocol(IP_PROTO_TCP);
-                    p.PushFrontHeader(ipp);
+                    // IP HEADER
+                    IPHeader ipResp;
+                    ipResp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH);
+                    ipResp.SetSourceIP(localAddr); // TODO Implement better source of our IP address
+                    ipResp.SetDestIP(remoteAddr);
+                    ipResp.SetProtocol(IP_PROTO_TCP);
+                    resp.PushFrontHeader(ipResp);
 
-                    cerr << "No error after IPHeader\n";
-
-                    TCPHeader h;
+                    // TCP HEADER
+                    TCPHeader tcpResp;
                     // Sequence number
                     unsigned int sSeq = 0;
                     // Acknowledgement number
@@ -124,27 +125,55 @@ int main(int argc, char * argv[]) {
                     // Window size
                     unsigned short windowSize = MSS;
                     // Generate TCP header
-                    generateTCPHeader(h, p, srcPort, destPort, sSeq, dSeq, flags, windowSize);
+                    generateTCPHeader(tcpResp, resp, localPort, remotePort, sSeq, dSeq, flags, windowSize);
                     // Push to stack
-                    p.PushBackHeader(h);
+                    resp.PushBackHeader(tcpResp);
 
-                    cerr << "No error after TCPHeader\n";
-
-
-
-                    h.ComputeChecksum(p);
-                    int e = MinetSend(mux, p);
-		            cerr << "ponse code: " << e << "\n";
+                    tcpResp.ComputeChecksum(resp);
+                    MinetSend(mux, p);
 
                     // TODO Setup for accept()
-                    cerr << "Connection established with " << srcAddr << " on " << dstAddr << "\n";
+                    cerr << "Connection established with " << remoteAddr << " on " << localAddr << "\n";
 
-                    ipp.GetSourceIP(srcAddr);
-                    ipp.GetDestIP(dstAddr);
-                    cerr << srcAddr << " -> " << dstAddr << "\n";
-                    cerr << p << "\n";
-                } else
-                    cerr << "Other packet received.";
+                } else { // TODO Will need major update when connection state is stored
+                    if (IS_ACK(flags)) {
+                        // TODO Handle later when connection state is stored
+                    }
+
+                    unsigned short dataLength;
+                    unsigned char headerLength;
+                    ih.GetTotalLength(dataLength);
+                    ih.GetHeaderLength(headerLength);
+                    dataLength -= headerLength;
+                    th.GetHeaderLen(headerLength);
+                    dataLength -= (headerLength * 4);
+                    cerr << "Data length: " << dataLength << "\n";
+
+                    if (dataLength > 0) { // TODO Handle incoing payload.
+                        Packet resp;
+
+                        IPHeader ipResp;
+                        ipResp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH + dataLength);
+                        ipResp.SetSourceIP(localAddr); // TODO Implement better source of our IP address
+                        ipResp.SetDestIP(remoteAddr);
+                        ipResp.SetProtocol(IP_PROTO_TCP);
+                        resp.PushFrontHeader(ipResp);
+
+                        TCPHeader tcpResp;
+                        // Acknowledgement
+                        unsigned int dSeq;
+                        dSeq += dataLength;
+                        // Flags
+                        unsigned char flags = 0;
+                        SET_ACK(flags);
+                        generateTCPHeader(tcpResp, resp, localPort, remotePort, 0, dSeq, flags, MSS);
+                        resp.PushBackHeader(tcpResp);
+
+                        MinetSend(mux, resp);
+
+                        cerr << "Packet starting at byte " << dSeq << " received.\n";
+                    }
+                }
 	        }
 
 	        if (event.handle == sock) {
@@ -162,6 +191,14 @@ int main(int argc, char * argv[]) {
     MinetDeinit();
 
     return 0;
+}
+
+void generateIPHeader(IPHeader& h, IPAddress srcAddr, IPAddress dstAddr, unsigned short dataLength) {
+    unsigned short length = IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH + dataLength;
+    h.SetTotalLength(length);
+    h.SetSourceIP(srcAddr);
+    h.SetDestIP(dstAddr);
+    h.SetProtocol(IP_PROTO_TCP);
 }
 
 void generateTCPHeader(TCPHeader& h, Packet& p, unsigned short srcPort, unsigned short dstPort, unsigned int seq, unsigned int ack,
