@@ -103,7 +103,7 @@ int main(int argc, char * argv[]) {
                     Packet resp;
 
                     IPHeader ipResp;
-		            ipResp.SetTotalLength(TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH);
+                    ipResp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH);
                     ipResp.SetSourceIP(dstAddr); // TODO Implement better source of our IP address
                     ipResp.SetDestIP(srcAddr);
                     ipResp.SetProtocol(IP_PROTO_TCP);
@@ -112,19 +112,32 @@ int main(int argc, char * argv[]) {
                     cerr << "No error after IPHeader\n";
 
                     TCPHeader tcpResp;
+                    // Source port
+                    tcpResp.SetSourcePort(srcPort, resp);
+                    // Destination prt
+                    tcpResp.SetDestPort(destPort, resp);
+                    // Sequence number
+                    unsigned int sSeq = 0;
+                    tcpResp.SetSeqNum(sSeq, resp);
+                    // Acknowledgement number
                     unsigned int dSeq;
                     th.GetSeqNum(dSeq);
                     dSeq += 1;
                     tcpResp.SetAckNum(dSeq, resp);
-                    unsigned int sSeq = 0;
-                    tcpResp.SetSeqNum(sSeq, resp);
+                    // TCP Header length
+                    unsigned short tcpHeaderLength = 5;
+                    tcpResp.SetHeaderLen(tcpHeaderLength, resp);
+                    // Flags
                     SET_ACK(flags);
-                    cerr << "Flags: " << flags << "\n";
+                    cerr << "Flags: " << (unsigned int) flags << "\n";
                     tcpResp.SetFlags(flags, resp);
-                    tcpResp.SetSourcePort(srcPort, resp);
-                    tcpResp.SetDestPort(destPort, resp);
-                    tcpResp.SetWinSize(MSS, resp);
-                    tcpResp.SetHeaderLen(TCP_HEADER_BASE_LENGTH, resp);
+                    // Window size
+                    unsigned short windowSize = MSS;
+                    tcpResp.SetWinSize(windowSize, resp);
+                    // Urgent pointer
+                    unsigned short urgentPtr = 0;
+                    tcpResp.SetUrgentPtr(urgentPtr, resp);
+                    // Push to stack
                     resp.PushBackHeader(tcpResp);
 
                     cerr << "No error after TCPHeader\n";
