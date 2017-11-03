@@ -114,8 +114,6 @@ int main(int argc, char * argv[]) {
 
                     // TCP HEADER
                     TCPHeader tcpResp;
-                    // Sequence number
-                    unsigned int sSeq = 0;
                     // Acknowledgement number
                     unsigned int dSeq;
                     th.GetSeqNum(dSeq);
@@ -125,15 +123,17 @@ int main(int argc, char * argv[]) {
                     // Window size
                     unsigned short windowSize = MSS;
                     // Generate TCP header
-                    generateTCPHeader(tcpResp, resp, localPort, remotePort, sSeq, dSeq, flags, windowSize);
+                    generateTCPHeader(tcpResp, resp, localPort, remotePort, 0, dSeq, flags, windowSize);
                     // Push to stack
                     resp.PushBackHeader(tcpResp);
 
                     tcpResp.ComputeChecksum(resp);
-                    MinetSend(mux, p);
+                    MinetSend(mux, resp);
 
                     // TODO Setup for accept()
                     cerr << "Connection established with " << remoteAddr << " on " << localAddr << "\n";
+                    cerr << "Local starting number: " << 0 << "\n";
+                    cerr << "Remote starting number: " << dSeq << "\n";
 
                 } else { // TODO Will need major update when connection state is stored
                     if (IS_ACK(flags)) {
@@ -143,8 +143,10 @@ int main(int argc, char * argv[]) {
                     unsigned short dataLength;
                     unsigned char headerLength;
                     ih.GetTotalLength(dataLength);
+                    cerr << "Total packet length: " << dataLength << "\n";
                     ih.GetHeaderLength(headerLength);
-                    dataLength -= headerLength;
+                    dataLength -= (headerLength * 4);
+                    cerr << "TCP segment length: " << dataLength << "\n";
                     th.GetHeaderLen(headerLength);
                     dataLength -= (headerLength * 4);
                     cerr << "Data length: " << dataLength << "\n";
@@ -162,11 +164,12 @@ int main(int argc, char * argv[]) {
                         TCPHeader tcpResp;
                         // Acknowledgement
                         unsigned int dSeq;
+                        th.GetSeqNum(dSeq);
                         dSeq += dataLength;
                         // Flags
                         unsigned char flags = 0;
                         SET_ACK(flags);
-                        generateTCPHeader(tcpResp, resp, localPort, remotePort, 0, dSeq, flags, MSS);
+                        generateTCPHeader(tcpResp, resp, localPort, remotePort, 1, dSeq, flags, MSS);
                         resp.PushBackHeader(tcpResp);
 
                         MinetSend(mux, resp);
