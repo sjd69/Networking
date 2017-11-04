@@ -27,47 +27,60 @@ using namespace std;
 
 struct TCPState {
     // need to write this
-    std::ostream & Print(std::ostream &os) const {
-	os << "TCPState()" ;
-	return os;
+    std::ostream &Print(std::ostream &os) const {
+        os << "TCPState()";
+        return os;
     }
+};
+
+
+enum HEADER_TYPES {
+    SYN,
+    SYNACK,
+    ACK,
+    PSHACK,
+    FIN,
+    FINACK,
+    RESET
 };
 
 #define MSS 536
 
-void generateTCPHeader(TCPHeader&, Packet&, unsigned short, unsigned short, unsigned int, unsigned int, unsigned char, unsigned short);
-void generateIPHeader(IPHeader&, IPAddress, IPAddress, unsigned short);
+void generateTCPHeader(TCPHeader &, Packet &, unsigned short, unsigned short, unsigned int, unsigned int, unsigned char,
+                       unsigned short);
 
-int main(int argc, char * argv[]) {
+void generateIPHeader(IPHeader &, IPAddress, IPAddress, unsigned short);
+
+int main(int argc, char *argv[]) {
     MinetHandle mux;
     MinetHandle sock;
 
-    ConnectionList<TCPState> clist;
+    ConnectionList <TCPState> clist;
 
     MinetInit(MINET_TCP_MODULE);
 
     mux = MinetIsModuleInConfig(MINET_IP_MUX) ?
-	MinetConnect(MINET_IP_MUX) :
-	MINET_NOHANDLE;
+          MinetConnect(MINET_IP_MUX) :
+          MINET_NOHANDLE;
 
     sock = MinetIsModuleInConfig(MINET_SOCK_MODULE) ?
-	MinetAccept(MINET_SOCK_MODULE) :
-	MINET_NOHANDLE;
+           MinetAccept(MINET_SOCK_MODULE) :
+           MINET_NOHANDLE;
 
-    if ( (mux == MINET_NOHANDLE) &&
-	 (MinetIsModuleInConfig(MINET_IP_MUX)) ) {
+    if ((mux == MINET_NOHANDLE) &&
+        (MinetIsModuleInConfig(MINET_IP_MUX))) {
 
-	MinetSendToMonitor(MinetMonitoringEvent("Can't connect to ip_mux"));
+        MinetSendToMonitor(MinetMonitoringEvent("Can't connect to ip_mux"));
 
-	return -1;
+        return -1;
     }
 
-    if ( (sock == MINET_NOHANDLE) &&
-	 (MinetIsModuleInConfig(MINET_SOCK_MODULE)) ) {
+    if ((sock == MINET_NOHANDLE) &&
+        (MinetIsModuleInConfig(MINET_SOCK_MODULE))) {
 
-	MinetSendToMonitor(MinetMonitoringEvent("Can't accept from sock_module"));
+        MinetSendToMonitor(MinetMonitoringEvent("Can't accept from sock_module"));
 
-	return -1;
+        return -1;
     }
 
     cerr << "tcp_module STUB VERSION handling tcp traffic.......\n";
@@ -79,11 +92,11 @@ int main(int argc, char * argv[]) {
 
     while (MinetGetNextEvent(event, timeout) == 0) {
 
-	    if ((event.eventtype == MinetEvent::Dataflow) &&
-	       (event.direction == MinetEvent::IN)) {
+        if ((event.eventtype == MinetEvent::Dataflow) &&
+            (event.direction == MinetEvent::IN)) {
 
-	        if (event.handle == mux) {
-		        // ip packet has arrived!
+            if (event.handle == mux) {
+                // ip packet has arrived!
                 cerr << "\n";
                 cerr << "Packet received\n";
                 Packet p;
@@ -93,7 +106,7 @@ int main(int argc, char * argv[]) {
                 IPHeader ih = p.FindHeader(Headers::IPHeader);
                 IPAddress localAddr, remoteAddr;
                 ih.GetSourceIP(remoteAddr);
-		        ih.GetDestIP(localAddr);
+                ih.GetDestIP(localAddr);
                 unsigned char flags;
                 unsigned short localPort, remotePort;
                 th.GetFlags(flags);
@@ -177,17 +190,17 @@ int main(int argc, char * argv[]) {
                         cerr << "Packet starting at byte " << dSeq << " received.\n";
                     }
                 }
-	        }
+            }
 
-	        if (event.handle == sock) {
-		        // socket request or honse has arrived
-	        }
-	    }
+            if (event.handle == sock) {
+                // socket request or response has arrived
+            }
+        }
 
-	    if (event.eventtype == MinetEvent::Timeout) {
-	        // timeout ! probably need to resend some packets
-	        //cerr << "Timer\n";
-	    }
+        if (event.eventtype == MinetEvent::Timeout) {
+            // timeout ! probably need to resend some packets
+            //cerr << "Timer\n";
+        }
 
     }
 
@@ -196,7 +209,7 @@ int main(int argc, char * argv[]) {
     return 0;
 }
 
-void generateIPHeader(IPHeader& h, IPAddress srcAddr, IPAddress dstAddr, unsigned short dataLength) {
+void generateIPHeader(IPHeader &h, IPAddress srcAddr, IPAddress dstAddr, unsigned short dataLength) {
     unsigned short length = IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH + dataLength;
     h.SetTotalLength(length);
     h.SetSourceIP(srcAddr);
@@ -204,8 +217,9 @@ void generateIPHeader(IPHeader& h, IPAddress srcAddr, IPAddress dstAddr, unsigne
     h.SetProtocol(IP_PROTO_TCP);
 }
 
-void generateTCPHeader(TCPHeader& h, Packet& p, unsigned short srcPort, unsigned short dstPort, unsigned int seq, unsigned int ack,
-        unsigned char flags, unsigned short windowSize) {
+void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned short dstPort, unsigned int seq,
+                       unsigned int ack,
+                       unsigned char flags, unsigned short windowSize) {
     // Source port
     h.SetSourcePort(srcPort, p);
     // Destination prt
@@ -225,3 +239,165 @@ void generateTCPHeader(TCPHeader& h, Packet& p, unsigned short srcPort, unsigned
     const unsigned short urgentPtr = 0;
     h.SetUrgentPtr(urgentPtr, p);
 }
+
+//void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionToStateMapping,
+//                 int tcpHeaderType, int sizeOfData, bool isTimeout) {
+//    cerr << "Creating a Packet" << endl;
+//    unsigned char flags = 0;
+//    int packetSize = sizeOfData + TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH;
+//    IPHeader ipHeader;
+//    TCPHeader tcpHeader;
+//
+//    // Create the IP Header
+//    ipHeader.SetSourceIP(connectionToStateMapping.connection.src);
+//    ipHeader.SetDestIP(connectionToStateMapping.connection.dest);
+//    ipHeader.SetTotalLength(packetSize);
+//    ipHeader.SetProtocol(IP_PROTO_TCP);
+//    packet.PushFrontHeader(ipHeader);
+//    cerr << "\nIPHeader: \n" << ipHeader << endl;
+//
+//    // Create the TCP Header
+//    tcpHeader.SetSourcePort(connectionToStateMapping.connection.srcport, packet);
+//    tcpHeader.SetDestPort(connectionToStateMapping.connection.destport, packet);
+//    tcpHeader.SetHeaderLen(TCP_HEADER_BASE_LENGTH, packet);
+//
+//    tcpHeader.SetAckNum(connectionToStateMapping.state.GetLastRecvd(), packet);
+//    tcpHeader.SetWinSize(connectionToStateMapping.state.GetRwnd(), packet);
+//    tcpHeader.SetUrgentPtr(0, packet);
+//
+//    // Determine what kind of packet it is
+//    switch (tcpHeaderType) {
+//        case SYN:
+//            SET_SYN(flags);
+//            cerr << "HEADER_TYPE = SYN" << endl;
+//            break;
+//
+//        case ACK:
+//            SET_ACK(flags);
+//            cerr << "HEADER_TYPE = ACK" << endl;
+//            break;
+//
+//        case SYNACK:
+//            SET_ACK(flags);
+//            SET_SYN(flags);
+//            cerr << "HEADER_TYPE = SYNACK" << endl;
+//            break;
+//
+//        case PSHACK:
+//            SET_PSH(flags);
+//            SET_ACK(flags);
+//            cerr << "HEADER_TYPE = PSHACK" << endl;
+//            break;
+//
+//        case FIN:
+//            SET_FIN(flags);
+//            cerr << "HEADER_TYPE = FIN" << endl;
+//            break;
+//
+//        case FINACK:
+//            SET_FIN(flags);
+//            SET_ACK(flags);
+//            cerr << "HEADER_TYPE = FINACK" << endl;
+//            break;
+//
+//        case HEADERTYPE_RST:
+//            SET_RST(flags);
+//            cerr << "HEADER_TYPE = RESET" << endl;
+//            break;
+//
+//        default:
+//            break;
+//    }
+//
+//    // Set the flag type
+//    tcpHeader.SetFlags(flags, packet);
+//
+//    // Print out the finished TCP header
+//    cerr << "\nTCPHeader: \n" << tcpHeader << endl;
+//
+//    if (isTimeout) {
+//        tcpHeader.SetSeqNum(connectionToStateMapping.state.GetLastSent() + 1, packet);
+//    }
+//    else {
+//        tcpHeader.SetSeqNum(connectionToStateMapping.state.GetLastSent(), packet);
+//    }
+//
+//    // Recompute the packet's checksum
+//    tcpHeader.RecomputeChecksum(packet);
+//
+//    // Add header to packet
+//    packet.PushBackHeader(tcpHeader);
+//
+//    cerr << "END OF PACKET CREATION\n" << endl;
+//}
+//
+//int send_data(const MinetHandle &mux, ConnectionToStateMapping<TCPState> &connectionToStateMapping,
+//              Buffer data, bool isTimeout) {
+//    cerr << "\nBEGIN SENDING DATA\n";
+//    Packet packet;
+//    unsigned int last;
+//
+//    //Bytes currently in the buffer
+//    unsigned int bytesLeft;
+//    int ctr = 0;
+//
+//    if (!isTimeout) {
+//        // Fill buffer with data to send
+//        last = connectionToStateMapping.state.SendBuffer.GetSize();
+//        connectionToStateMapping.state.SendBuffer.AddBack(data);
+//        bytesLeft = data.GetSize();
+//    } else {
+//        // Flush the buffer
+//        last = 0;
+//        bytesLeft = connectionToStateMapping.state.SendBuffer.GetSize();
+//    }
+//
+//    // While there are bytes in the buffer
+//    while (bytes_left != 0) {
+//        // Send the maximum amount of bytes possible
+//        unsigned int bytesToSend = min(bytes_left, TCP_MAXIMUM_SEGMENT_SIZE);
+//
+//        // Pull data out of buffer into an array
+//        char dataString[bytesToSend + 1];
+//        cerr << "\nOffset:\n" << last << endl;
+//        int dataSize = connectionToStateMapping.state.SendBuffer.GetData(dataString, bytesToSend, last);
+//        dataString[dataSize + 1] = '\0';
+//        cerr << "Data: \n" << dataString;
+//
+//        // Send data to a buffer
+//        Buffer sendBuf;
+//        sendBuf.SetData(dataString, dataSize, 0);
+//        cerr << "Buffer: \n" << sendBuf;
+//
+//        // add buffer to packet
+//        packet = sendBuf.Extract(0, dataSize);
+//
+//        // If this is the first segment of data, reset sequence number via timeout
+//        if (ctr == 0) {
+//            make_packet(packet, connectionToStateMapping, PSHACK, dataSize, isTimeout);
+//        } else {
+//            make_packet(packet, connectionToStateMapping, PSHACK, dataSize, false);
+//        }
+//        MinetSend(mux, packet);
+//        connectionToStateMapping.state.last_sent = connectionToStateMapping.state.last_sent + bytesToSend;
+//
+//        // Update number of bytes left
+//        bytesLeft -= bytesToSend;
+//        last += dataSize;
+//        ctr++;
+//    }
+//    cerr << "\nDONE SENDING DATA\n";
+//    return bytesLeft;
+//}
+//
+//
+//
+//void sock_handler() {
+//
+//}
+//
+//void timeout_handler() {
+//
+//}
+
+
