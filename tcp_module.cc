@@ -43,7 +43,7 @@ struct TCPState {
     unsigned int localCurrentACK, localNextACK;
     unsigned int remoteSeqNum;
 
-    Buffer& SendBuffer, ReceiveBuffer;
+    Buffer &SendBuffer, &ReceiveBuffer;
 
     double EstimatedRTT, DevRTT;
     struct timeval sendTime;
