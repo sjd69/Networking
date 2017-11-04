@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <errno.h>
 
@@ -25,14 +26,38 @@
 
 using namespace std;
 
+enum MODE {
+    ZERO = 0,
+    CONNECTING_LOCAL_INIT, // Entered via connect()
+    ACCEPTING, // Entered via accept()
+    CONNECTING_REMOTE_INIT, // Entered after SYNACK, but before ACK
+    NORMAL, // CONNECTED already used in sock_mod_structs.h
+    CLOSED_LOCALLY, // Entered after local close()
+    CLOSED_REMOTELY, // Entered after FIN
+    CLOSED_TOTALLY, // Enter after close(), then FIN
+    CLOSED_WAITING // Entered after FIN, then close (waiting on ACK to our FIN)
+};
+
 struct TCPState {
+    MODE mode;
+    unsigned int localCurrentACK, localNextACK;
+    unsigned int remoteSeqNum;
+
+    Buffer& SendBuffer, ReceiveBuffer;
+
+    double EstimatedRTT, DevRTT;
+    struct timeval sendTime;
+
+    bool sockRequestValid;
+    SockRequestResponse request;
+
+
     // need to write this
     std::ostream &Print(std::ostream &os) const {
         os << "TCPState()";
         return os;
     }
 };
-
 
 enum HEADER_TYPES {
     SYN,
@@ -119,10 +144,7 @@ int main(int argc, char *argv[]) {
 
                     // IP HEADER
                     IPHeader ipResp;
-                    ipResp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH);
-                    ipResp.SetSourceIP(localAddr); // TODO Implement better source of our IP address
-                    ipResp.SetDestIP(remoteAddr);
-                    ipResp.SetProtocol(IP_PROTO_TCP);
+                    generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
                     resp.PushFrontHeader(ipResp);
 
                     // TCP HEADER
@@ -148,6 +170,8 @@ int main(int argc, char *argv[]) {
                     cerr << "Local starting number: " << 0 << "\n";
                     cerr << "Remote starting number: " << dSeq << "\n";
 
+                } else if (IS_FIN(flags)) {
+                    // TODO Implement closing logic
                 } else { // TODO Will need major update when connection state is stored
                     if (IS_ACK(flags)) {
                         // TODO Handle later when connection state is stored
@@ -168,10 +192,7 @@ int main(int argc, char *argv[]) {
                         Packet resp;
 
                         IPHeader ipResp;
-                        ipResp.SetTotalLength(IP_HEADER_BASE_LENGTH + TCP_HEADER_BASE_LENGTH + dataLength);
-                        ipResp.SetSourceIP(localAddr); // TODO Implement better source of our IP address
-                        ipResp.SetDestIP(remoteAddr);
-                        ipResp.SetProtocol(IP_PROTO_TCP);
+                        generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
                         resp.PushFrontHeader(ipResp);
 
                         TCPHeader tcpResp;
@@ -399,5 +420,3 @@ void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned
 //void timeout_handler() {
 //
 //}
-
-
