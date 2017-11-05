@@ -377,78 +377,54 @@ void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned
 //
 //    cerr << "END OF PACKET CREATION\n" << endl;
 //}
-//
-//int send_data(const MinetHandle &mux, ConnectionToStateMapping<TCPState> &connectionToStateMapping,
-//              Buffer data, bool isTimeout) {
-//    cerr << "\nBEGIN SENDING DATA\n";
-//    Packet packet;
-//    unsigned int last;
-//
-//    //Bytes currently in the buffer
-//    unsigned int bytesLeft;
-//    int ctr = 0;
-//
-//    if (!isTimeout) {
-//        // Fill buffer with data to send
-//        last = connectionToStateMapping.state.SendBuffer.GetSize();
-//        connectionToStateMapping.state.SendBuffer.AddBack(data);
-//        bytesLeft = data.GetSize();
-//    } else {
-//        // Flush the buffer
-//        last = 0;
-//        bytesLeft = connectionToStateMapping.state.SendBuffer.GetSize();
-//    }
-//
-//    // While there are bytes in the buffer
-//    while (bytes_left != 0) {
-//        // Send the maximum amount of bytes possible
-//        unsigned int bytesToSend = min(bytes_left, TCP_MAXIMUM_SEGMENT_SIZE);
-//
-//        // Pull data out of buffer into an array
-//        char dataString[bytesToSend + 1];
-//        cerr << "\nOffset:\n" << last << endl;
-//        int dataSize = connectionToStateMapping.state.SendBuffer.GetData(dataString, bytesToSend, last);
-//        dataString[dataSize + 1] = '\0';
-//        cerr << "Data: \n" << dataString;
-//
-//        // Send data to a buffer
-//        Buffer sendBuf;
-//        sendBuf.SetData(dataString, dataSize, 0);
-//        cerr << "Buffer: \n" << sendBuf;
-//
-//        // add buffer to packet
-//        packet = sendBuf.Extract(0, dataSize);
-//
-//        // If this is the first segment of data, reset sequence number via timeout
-//        if (ctr == 0) {
-//            make_packet(packet, connectionToStateMapping, PSHACK, dataSize, isTimeout);
-//        } else {
-//            make_packet(packet, connectionToStateMapping, PSHACK, dataSize, false);
-//        }
-//        MinetSend(mux, packet);
-//        connectionToStateMapping.state.last_sent = connectionToStateMapping.state.last_sent + bytesToSend;
-//
-//        // Update number of bytes left
-//        bytesLeft -= bytesToSend;
-//        last += dataSize;
-//        ctr++;
-//    }
-//    cerr << "\nDONE SENDING DATA\n";
-//    return bytesLeft;
-//}
-//
-//
-//
-void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionList<TCPState> &connectionList) {
-    SockRequestResponse socketResponse;
-    MinetReceive(sock, socketResponse);
 
-    ConnectionList<TCPState>::iterator cs = connectionList.FindMatching(socketResponse.connection);
+void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionList<TCPState> &connectionList) {
+    SockRequestResponse socketRequest;
+    SockRequestResponse socketReply;
+
+    MinetReceive(sock, socketRequest);
+
+    ConnectionList<TCPState>::iterator cs = connectionList.FindMatching(socketRequest.connection);
 
     switch(socketResponse.type) {
         case CONNECT:
+            cerr << "\nSOCKET HANDLER - CONNECT\n" << endl;
+            Packet packet;
+            TCPState clientState = TCPState(0, SYN_SENT, 3);
+
+            //What to set timeout as?
+            ConnectionToStateMapping<TCPState> newConnectionToStateMapping
+                    = ConnectionToStateMapping(socketRequest.connection, Time() + 3, clientState, true);
+
+            //MAKE PACKET
+            MinetSend(mux, packet);
+
+            socketReply.type = STATUS;
+            socketReply.error = EOK;
+            socketReply.connection = socketRequest.connection;
+            MinetSend(sock, socketReply);
+            cerr << "\nSOCKET HANDLER - CONNECTION CREATED\n" << endl;
+
             break;
         case ACCEPT:
+            cerr << "\nSOCKET HANDLER - ACCEPT\n" << endl;
+
+            //Sequence number starts at 0, correct?
+            TCPState serverState = TCPState(0, LISTEN, 3);
+
+            //What to set timeout as? 0?
+            ConnectionToStateMapping<TCPState> newConnectionToStateMapping
+                    = ConnectionToStateMapping(socketRequest.connection, Time(), serverState, false);
+
+            connectionList.push_front(newConnectionToStateMapping);
+
+            socketReply.type = STATUS;
+            socketReply.error = EOK;
+            socketReply.connection = socketRequest.connection;
+            MinetSend(sock, socketReply);
+
+            cerr << "\nSOCKET HANDLER - CONNECTION ACCEPTED\n" << endl;
+
             break;
         case WRITE:
             break;
