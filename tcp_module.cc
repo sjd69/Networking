@@ -78,6 +78,7 @@ void generateTCPHeader(TCPHeader &, Packet &, unsigned short, unsigned short, un
                        unsigned short);
 
 void generateIPHeader(IPHeader &, IPAddress, IPAddress, unsigned short);
+void socket_handler(const MinetHandle&, const MinetHandle&, ConnectionList<TCPState>&);
 
 int main(int argc, char *argv[]) {
     MinetHandle mux;
@@ -151,10 +152,12 @@ int main(int argc, char *argv[]) {
                         ConnectionList<TCPState>::iterator it;
                         int connectionListSize = connections.size();
                         int i = 0;
+                        bool success = 0;
                         for (it = connections.begin(); i < connectionListSize; it++, i++) {
                             ConnectionToStateMapping<TCPState> &m = *it;
-                            if (m.state.GetState() == LISTEN) {
-                            Packet resp;
+                            if ((m.state.GetState() == LISTEN && m.connection.MatchesSource(c)) ||
+                                    (m.state.GetState() == SYN_RCVD && m.connection.Matches(c))) {
+                                Packet resp;
 
                                 // IP HEADER
                                 IPHeader ipResp;
@@ -179,28 +182,55 @@ int main(int argc, char *argv[]) {
                                 tcpResp.ComputeChecksum(resp);
                                 MinetSend(mux, resp);
 
-                                // TODO Setup for accept()
-                                cerr << "Connection established with " << remoteAddr << " on " << localAddr << "\n";
-                                cerr << "Local starting number: " << 0 << "\n";
-                                cerr << "Remote starting number: " << dSeq << "\n";
+                                if (m.state.GetState() == LISTEN) {
+                                    cerr << "Connection established with " << remoteAddr << "\n";
+                                    cerr << "Local starting number: " << 0 << "\n";
+                                    cerr << "Remote starting number: " << dSeq << "\n";
+                                } else
+                                    cerr << "Retransmitted SYNACK to " << remoteAddr << "\n";
 
                                 // Establishing state
                                 m.state.SetState(SYN_RCVD);
-                                m.state.SetLastSent(0);
-                                m.state.SetLastAcked(-1);
+                                m.state.SetLastSent(1);
+                                m.state.SetLastAcked(0);
                                 m.state.SetLastRecvd(dSeq);
-
                                 m.connection = c;
+
+                                success = 1;
+                                break;
                             }
-                            // TODO Handle lost SYNACK
                         }
+                        if (!success)
+                            cerr << "SYN packet caught, but no one was listening.\n";
                     }
 
                 } else if (IS_FIN(flags)) {
                     // TODO Implement closing logic
                 } else { // TODO Will need major update when connection state is stored
                     if (IS_ACK(flags)) {
-                        // TODO Handle later when connection state is stored
+                        ConnectionList<TCPState>::iterator it = connections.FindMatching(c);
+                        ConnectionToStateMapping<TCPState> &m = *it;
+
+                        unsigned int ack;
+                        th.GetAckNum(ack);
+
+                        // Saving valid acknowledgements.
+                        if (ack == m.state.GetLastSent()) {
+                            m.state.SetLastAcked(ack);
+                            cerr << "Acknowledgement confirmed";
+                        }
+
+                        // Completing handshake
+                        if (m.state.GetState() == SYN_RCVD) {
+                            m.state.SetState(ESTABLISHED);
+
+                            // Informing the socket
+                            Buffer b;
+                            SockRequestResponse acceptResponse(WRITE, m.connection, b, 0, EOK);
+                            MinetSend(sock, acceptResponse);
+
+                            cerr << "Connection accepted with " << remoteAddr << "\n";
+                        }
                     }
 
                     unsigned short dataLength;
@@ -241,6 +271,7 @@ int main(int argc, char *argv[]) {
 
             if (event.handle == sock) {
                 // socket request or response has arrived
+                socket_handler(mux, sock, connections);
             }
         }
 
@@ -386,15 +417,15 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
     ConnectionList<TCPState>::iterator cs = connectionList.FindMatching(socketRequest.connection);
 
-    switch(socketResponse.type) {
-        case CONNECT:
+    switch(socketRequest.type) {
+        case CONNECT: {
             cerr << "\nSOCKET HANDLER - CONNECT\n" << endl;
             Packet packet;
             TCPState clientState = TCPState(0, SYN_SENT, 3);
 
             //What to set timeout as?
             ConnectionToStateMapping<TCPState> newConnectionToStateMapping
-                    = ConnectionToStateMapping(socketRequest.connection, Time() + 3, clientState, true);
+                    = ConnectionToStateMapping<TCPState>(socketRequest.connection, Time() + 3, clientState, true);
 
             //MAKE PACKET
             MinetSend(mux, packet);
@@ -406,7 +437,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
             cerr << "\nSOCKET HANDLER - CONNECTION CREATED\n" << endl;
 
             break;
-        case ACCEPT:
+        } case ACCEPT: {
             cerr << "\nSOCKET HANDLER - ACCEPT\n" << endl;
 
             //Sequence number starts at 0, correct?
@@ -414,7 +445,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
             //What to set timeout as? 0?
             ConnectionToStateMapping<TCPState> newConnectionToStateMapping
-                    = ConnectionToStateMapping(socketRequest.connection, Time(), serverState, false);
+                    = ConnectionToStateMapping<TCPState>(socketRequest.connection, Time(), serverState, false);
 
             connectionList.push_front(newConnectionToStateMapping);
 
@@ -426,7 +457,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
             cerr << "\nSOCKET HANDLER - CONNECTION ACCEPTED\n" << endl;
 
             break;
-        case WRITE:
+        } case WRITE:
             break;
         case FORWARD:
             break;
