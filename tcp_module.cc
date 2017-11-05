@@ -142,41 +142,58 @@ int main(int argc, char *argv[]) {
                 th.GetFlags(flags);
                 th.GetSourcePort(remotePort);
                 th.GetDestPort(localPort);
+                Connection c (localAddr, remoteAddr, localPort, remotePort, IP_PROTO_TCP);
                 if (IS_SYN(flags)) {
-                    // TODO After network facing complete, implement check for server socket
                     if (IS_ACK(flags)) { // Active open
-
+                        // TODO Implement client side active open handling
                     } else { // Passive open
 
-                        Packet resp;
+                        ConnectionList<TCPState>::iterator it;
+                        int connectionListSize = connections.size();
+                        int i = 0;
+                        for (it = connections.begin(); i < connectionListSize; it++, i++) {
+                            ConnectionToStateMapping<TCPState> &m = *it;
+                            if (m.state.GetState() == LISTEN) {
+                            Packet resp;
 
-                        // IP HEADER
-                        IPHeader ipResp;
-                        generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
-                        resp.PushFrontHeader(ipResp);
+                                // IP HEADER
+                                IPHeader ipResp;
+                                generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
+                                resp.PushFrontHeader(ipResp);
 
-                        // TCP HEADER
-                        TCPHeader tcpResp;
-                        // Acknowledgement number
-                        unsigned int dSeq;
-                        th.GetSeqNum(dSeq);
-                        dSeq += 1;
-                        // Flags
-                        SET_ACK(flags);
-                        // Window size
-                        unsigned short windowSize = MSS;
-                        // Generate TCP header
-                        generateTCPHeader(tcpResp, resp, localPort, remotePort, 0, dSeq, flags, windowSize);
-                        // Push to stack
-                        resp.PushBackHeader(tcpResp);
+                                // TCP HEADER
+                                TCPHeader tcpResp;
+                                // Acknowledgement number
+                                unsigned int dSeq;
+                                th.GetSeqNum(dSeq);
+                                dSeq += 1;
+                                // Flags
+                                SET_ACK(flags);
+                                // Window size
+                                unsigned short windowSize = MSS;
+                                // Generate TCP header
+                                generateTCPHeader(tcpResp, resp, localPort, remotePort, 0, dSeq, flags, windowSize);
+                                // Push to stack
+                                resp.PushBackHeader(tcpResp);
 
-                        tcpResp.ComputeChecksum(resp);
-                        MinetSend(mux, resp);
+                                tcpResp.ComputeChecksum(resp);
+                                MinetSend(mux, resp);
 
-                        // TODO Setup for accept()
-                        cerr << "Connection established with " << remoteAddr << " on " << localAddr << "\n";
-                        cerr << "Local starting number: " << 0 << "\n";
-                        cerr << "Remote starting number: " << dSeq << "\n";
+                                // TODO Setup for accept()
+                                cerr << "Connection established with " << remoteAddr << " on " << localAddr << "\n";
+                                cerr << "Local starting number: " << 0 << "\n";
+                                cerr << "Remote starting number: " << dSeq << "\n";
+
+                                // Establishing state
+                                m.state.SetState(SYN_RCVD);
+                                m.state.SetLastSent(0);
+                                m.state.SetLastAcked(-1);
+                                m.state.SetLastRecvd(dSeq);
+
+                                m.connection = c;
+                            }
+                            // TODO Handle lost SYNACK
+                        }
                     }
 
                 } else if (IS_FIN(flags)) {
@@ -423,16 +440,12 @@ void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned
 //
 //
 void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionList<TCPState> &connectionList) {
-    SocketRequestResponse socketReponse;
+    SockRequestResponse socketResponse;
     MinetReceive(sock, socketResponse);
 
     ConnectionList<TCPState>::iterator cs = connectionList.FindMatching(socketResponse.connection);
 
     switch(socketResponse.type) {
-        case CONNECT:
-            break;
-        case ACCEPT:
-            break;
         case CONNECT:
             break;
         case ACCEPT:
@@ -450,5 +463,3 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
     }
 }
-
-
