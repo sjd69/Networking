@@ -271,7 +271,7 @@ void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned
 }
 
 //void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionToStateMapping,
-//                 int tcpHeaderType, int sizeOfData, bool isTimeout) {
+//                 HEADER_TYPE tcpHeaderType, int sizeOfData, bool isTimeout) {
 //    cerr << "Creating a Packet" << endl;
 //    unsigned char flags = 0;
 //    int packetSize = sizeOfData + TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH;
@@ -422,10 +422,33 @@ void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned
 //
 //
 //
-//void sock_handler() {
-//
-//}
-//
-//void timeout_handler() {
-//
-//}
+void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionList<TCPState> &connectionList) {
+    SocketRequestResponse socketReponse;
+    MinetReceive(sock, socketResponse);
+
+    ConnectionList<TCPState>::iterator cs = connectionList.FindMatching(socketResponse.connection);
+
+    switch(socketResponse.type) {
+        case CONNECT:
+            break;
+        case ACCEPT:
+            break;
+        case CONNECT:
+            break;
+        case ACCEPT:
+            break;
+        case WRITE:
+            break;
+        case FORWARD:
+            break;
+        case CLOSE:
+            break;
+        case STATUS:
+            break;
+        default:
+            break;
+
+    }
+}
+
+
