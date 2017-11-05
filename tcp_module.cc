@@ -206,10 +206,25 @@ int main(int argc, char *argv[]) {
 
                 } else if (IS_FIN(flags)) {
                     // TODO Implement closing logic
-                } else { // TODO Will need major update when connection state is stored
+                } else {
+                    ConnectionList<TCPState>::iterator it = connections.FindMatching(c);
+                    ConnectionToStateMapping<TCPState> &m = *it;
+
+                    unsigned short dataLength;
+                    unsigned char headerLength;
+                    bool ackNeeded = 0;
+
+                    ih.GetTotalLength(dataLength);
+                    cerr << "Total packet length: " << dataLength << "\n";
+                    ih.GetHeaderLength(headerLength);
+                    dataLength -= (headerLength * 4);
+                    cerr << "TCP segment length: " << dataLength << "\n";
+                    th.GetHeaderLen(headerLength);
+                    dataLength -= (headerLength * 4);
+                    cerr << "Data length: " << dataLength << "\n";
+
+                    // ACKNOWLEDGEMENTS
                     if (IS_ACK(flags)) {
-                        ConnectionList<TCPState>::iterator it = connections.FindMatching(c);
-                        ConnectionToStateMapping<TCPState> &m = *it;
 
                         unsigned int ack;
                         th.GetAckNum(ack);
@@ -233,38 +248,57 @@ int main(int argc, char *argv[]) {
                         }
                     }
 
-                    unsigned short dataLength;
-                    unsigned char headerLength;
-                    ih.GetTotalLength(dataLength);
-                    cerr << "Total packet length: " << dataLength << "\n";
-                    ih.GetHeaderLength(headerLength);
-                    dataLength -= (headerLength * 4);
-                    cerr << "TCP segment length: " << dataLength << "\n";
-                    th.GetHeaderLen(headerLength);
-                    dataLength -= (headerLength * 4);
-                    cerr << "Data length: " << dataLength << "\n";
+                    // INCOMING DATA
+                    if (dataLength > 0) {
+                        ackNeeded = 1;
 
-                    if (dataLength > 0) { // TODO Handle incoing payload.
+                        // Remote sequence number
+                        unsigned int dSeq;
+                        th.GetSeqNum(dSeq);
+
+                        if (dSeq == m.state.last_recvd) { // If valid sequence number
+                            cerr << "Data received starting at byte number" << dSeq << "\n";
+
+                            // Updating remote sequence number
+                            m.state.last_recvd = m.state.last_recvd + dataLength;
+
+                            // Passing up to socket
+                            Buffer b = p.GetPayload();
+                            SockRequestResponse socketResponse (WRITE, m.connection, b, dataLength, EOK);
+                            MinetSend(sock, socketResponse);
+                        } else
+                            cerr << "Data received with incorred sequence number\n";
+                    }
+
+                    // OUTGOING DATA
+                    //bool writeNeeded = m.state.last_send - m.state.last_acked > 0 && m.state.SendBuffer.GetSize() > 0;
+                    bool writeNeeded = 0;
+
+                    // WRITING TO REMOTE
+                    if (ackNeeded || writeNeeded) {
                         Packet resp;
+                        unsigned short payloadLength;
+
+                        //if (writeNeeded) {
+                        //    Buffer& payload = resp.GetPayload();
+                        //} else
+                            payloadLength = 0;
 
                         IPHeader ipResp;
-                        generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
+                        generateIPHeader(ipResp, localAddr, remoteAddr, payloadLength); // TODO Implement better source of our IP address
                         resp.PushFrontHeader(ipResp);
 
                         TCPHeader tcpResp;
-                        // Acknowledgement
-                        unsigned int dSeq;
-                        th.GetSeqNum(dSeq);
-                        dSeq += dataLength;
                         // Flags
                         unsigned char flags = 0;
-                        SET_ACK(flags);
-                        generateTCPHeader(tcpResp, resp, localPort, remotePort, 1, dSeq, flags, MSS);
+                        if (ackNeeded)
+                            SET_ACK(flags);
+                        if (writeNeeded)
+                            SET_PSH(flags);
+                        generateTCPHeader(tcpResp, resp, localPort, remotePort, m.state.last_sent, m.state.last_recvd, flags, MSS);
                         resp.PushBackHeader(tcpResp);
 
                         MinetSend(mux, resp);
-
-                        cerr << "Packet starting at byte " << dSeq << " received.\n";
                     }
                 }
             }
