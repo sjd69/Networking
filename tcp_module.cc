@@ -231,6 +231,10 @@ int main(int argc, char *argv[]) {
 
                         // Saving valid acknowledgements.
                         if (ack == m.state.GetLastSent()) {
+                            // Dropping data from buffer
+                            m.state.SendBuffer.ExtractFront(m.state.last_sent - m.state.last_acked);
+
+                            // Saving ACKed position
                             m.state.SetLastAcked(ack);
                             cerr << "Acknowledgement confirmed";
                         }
@@ -271,17 +275,20 @@ int main(int argc, char *argv[]) {
                     }
 
                     // OUTGOING DATA
-                    //bool writeNeeded = m.state.last_send - m.state.last_acked > 0 && m.state.SendBuffer.GetSize() > 0;
-                    bool writeNeeded = 0;
+                    bool writeNeeded = m.state.last_sent == m.state.last_acked && m.state.SendBuffer.GetSize() > 0;
 
                     // WRITING TO REMOTE
                     if (ackNeeded || writeNeeded) {
                         Packet resp;
                         unsigned short payloadLength;
 
-                        //if (writeNeeded) {
-                        //    Buffer& payload = resp.GetPayload();
-                        //} else
+                        if (writeNeeded) {
+                            char buf[MSS];
+                            payloadLength = m.state.SendBuffer.GetData(buf, MSS, 0);
+                            const char* constBuf = buf;
+                            size_t payloadSize = payloadLength;
+                            resp = Packet(constBuf, payloadSize);
+                        } else
                             payloadLength = 0;
 
                         IPHeader ipResp;
@@ -298,6 +305,7 @@ int main(int argc, char *argv[]) {
                         generateTCPHeader(tcpResp, resp, localPort, remotePort, m.state.last_sent, m.state.last_recvd, flags, MSS);
                         resp.PushBackHeader(tcpResp);
 
+                        tcpResp.ComputeChecksum(resp);
                         MinetSend(mux, resp);
                     }
                 }
