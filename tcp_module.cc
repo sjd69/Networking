@@ -23,9 +23,11 @@
 #include <iostream>
 
 #include "Minet.h"
+#include "tcpstate.h"
 
 using namespace std;
 
+/*
 enum MODE {
     ZERO = 0,
     CONNECTING_LOCAL_INIT, // Entered via connect()
@@ -58,6 +60,7 @@ struct TCPState {
         return os;
     }
 };
+*/
 
 enum HEADER_TYPES {
     SYN,
@@ -112,6 +115,8 @@ int main(int argc, char *argv[]) {
 
     MinetSendToMonitor(MinetMonitoringEvent("tcp_module STUB VERSION handling tcp traffic........"));
 
+    ConnectionList<TCPState> connections;
+
     MinetEvent event;
     double timeout = 1;
 
@@ -139,36 +144,40 @@ int main(int argc, char *argv[]) {
                 th.GetDestPort(localPort);
                 if (IS_SYN(flags)) {
                     // TODO After network facing complete, implement check for server socket
+                    if (IS_ACK(flags)) { // Active open
 
-                    Packet resp;
+                    } else { // Passive open
 
-                    // IP HEADER
-                    IPHeader ipResp;
-                    generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
-                    resp.PushFrontHeader(ipResp);
+                        Packet resp;
 
-                    // TCP HEADER
-                    TCPHeader tcpResp;
-                    // Acknowledgement number
-                    unsigned int dSeq;
-                    th.GetSeqNum(dSeq);
-                    dSeq += 1;
-                    // TCP Header length
-                    SET_ACK(flags);
-                    // Window size
-                    unsigned short windowSize = MSS;
-                    // Generate TCP header
-                    generateTCPHeader(tcpResp, resp, localPort, remotePort, 0, dSeq, flags, windowSize);
-                    // Push to stack
-                    resp.PushBackHeader(tcpResp);
+                        // IP HEADER
+                        IPHeader ipResp;
+                        generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
+                        resp.PushFrontHeader(ipResp);
 
-                    tcpResp.ComputeChecksum(resp);
-                    MinetSend(mux, resp);
+                        // TCP HEADER
+                        TCPHeader tcpResp;
+                        // Acknowledgement number
+                        unsigned int dSeq;
+                        th.GetSeqNum(dSeq);
+                        dSeq += 1;
+                        // Flags
+                        SET_ACK(flags);
+                        // Window size
+                        unsigned short windowSize = MSS;
+                        // Generate TCP header
+                        generateTCPHeader(tcpResp, resp, localPort, remotePort, 0, dSeq, flags, windowSize);
+                        // Push to stack
+                        resp.PushBackHeader(tcpResp);
 
-                    // TODO Setup for accept()
-                    cerr << "Connection established with " << remoteAddr << " on " << localAddr << "\n";
-                    cerr << "Local starting number: " << 0 << "\n";
-                    cerr << "Remote starting number: " << dSeq << "\n";
+                        tcpResp.ComputeChecksum(resp);
+                        MinetSend(mux, resp);
+
+                        // TODO Setup for accept()
+                        cerr << "Connection established with " << remoteAddr << " on " << localAddr << "\n";
+                        cerr << "Local starting number: " << 0 << "\n";
+                        cerr << "Remote starting number: " << dSeq << "\n";
+                    }
 
                 } else if (IS_FIN(flags)) {
                     // TODO Implement closing logic
