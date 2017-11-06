@@ -360,96 +360,92 @@ void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned
     h.SetUrgentPtr(urgentPtr, p);
 }
 
-//void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionToStateMapping,
-//                 HEADER_TYPE tcpHeaderType, int sizeOfData, bool isTimeout) {
-//    cerr << "Creating a Packet" << endl;
-//    unsigned char flags = 0;
-//    int packetSize = sizeOfData + TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH;
-//    IPHeader ipHeader;
-//    TCPHeader tcpHeader;
-//
-//    // Create the IP Header
-//    ipHeader.SetSourceIP(connectionToStateMapping.connection.src);
-//    ipHeader.SetDestIP(connectionToStateMapping.connection.dest);
-//    ipHeader.SetTotalLength(packetSize);
-//    ipHeader.SetProtocol(IP_PROTO_TCP);
-//    packet.PushFrontHeader(ipHeader);
-//    cerr << "\nIPHeader: \n" << ipHeader << endl;
-//
-//    // Create the TCP Header
-//    tcpHeader.SetSourcePort(connectionToStateMapping.connection.srcport, packet);
-//    tcpHeader.SetDestPort(connectionToStateMapping.connection.destport, packet);
-//    tcpHeader.SetHeaderLen(TCP_HEADER_BASE_LENGTH, packet);
-//
-//    tcpHeader.SetAckNum(connectionToStateMapping.state.GetLastRecvd(), packet);
-//    tcpHeader.SetWinSize(connectionToStateMapping.state.GetRwnd(), packet);
-//    tcpHeader.SetUrgentPtr(0, packet);
-//
-//    // Determine what kind of packet it is
-//    switch (tcpHeaderType) {
-//        case SYN:
-//            SET_SYN(flags);
-//            cerr << "HEADER_TYPE = SYN" << endl;
-//            break;
-//
-//        case ACK:
-//            SET_ACK(flags);
-//            cerr << "HEADER_TYPE = ACK" << endl;
-//            break;
-//
-//        case SYNACK:
-//            SET_ACK(flags);
-//            SET_SYN(flags);
-//            cerr << "HEADER_TYPE = SYNACK" << endl;
-//            break;
-//
-//        case PSHACK:
-//            SET_PSH(flags);
-//            SET_ACK(flags);
-//            cerr << "HEADER_TYPE = PSHACK" << endl;
-//            break;
-//
-//        case FIN:
-//            SET_FIN(flags);
-//            cerr << "HEADER_TYPE = FIN" << endl;
-//            break;
-//
-//        case FINACK:
-//            SET_FIN(flags);
-//            SET_ACK(flags);
-//            cerr << "HEADER_TYPE = FINACK" << endl;
-//            break;
-//
-//        case HEADERTYPE_RST:
-//            SET_RST(flags);
-//            cerr << "HEADER_TYPE = RESET" << endl;
-//            break;
-//
-//        default:
-//            break;
-//    }
-//
-//    // Set the flag type
-//    tcpHeader.SetFlags(flags, packet);
-//
-//    // Print out the finished TCP header
-//    cerr << "\nTCPHeader: \n" << tcpHeader << endl;
-//
-//    if (isTimeout) {
-//        tcpHeader.SetSeqNum(connectionToStateMapping.state.GetLastSent() + 1, packet);
-//    }
-//    else {
-//        tcpHeader.SetSeqNum(connectionToStateMapping.state.GetLastSent(), packet);
-//    }
-//
-//    // Recompute the packet's checksum
-//    tcpHeader.RecomputeChecksum(packet);
-//
-//    // Add header to packet
-//    packet.PushBackHeader(tcpHeader);
-//
-//    cerr << "END OF PACKET CREATION\n" << endl;
-//}
+void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionToStateMapping,
+                 HEADER_TYPE tcpHeaderType, int sizeOfData) {
+    cerr << "Creating a Packet" << endl;
+    unsigned char flags = 0;
+    int packetSize = sizeOfData + TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH;
+    IPHeader ipHeader;
+    TCPHeader tcpHeader;
+
+    // Create the IP Header
+    ipHeader.SetSourceIP(connectionToStateMapping.connection.src);
+    ipHeader.SetDestIP(connectionToStateMapping.connection.dest);
+    ipHeader.SetTotalLength(packetSize);
+    ipHeader.SetProtocol(IP_PROTO_TCP);
+    packet.PushFrontHeader(ipHeader);
+    cerr << "\nIPHeader: \n" << ipHeader << endl;
+
+    // Create the TCP Header
+    tcpHeader.SetSourcePort(connectionToStateMapping.connection.srcport, packet);
+    tcpHeader.SetDestPort(connectionToStateMapping.connection.destport, packet);
+    tcpHeader.SetHeaderLen(TCP_HEADER_BASE_LENGTH, packet);
+
+    tcpHeader.SetAckNum(connectionToStateMapping.state.GetLastRecvd(), packet);
+    tcpHeader.SetWinSize(connectionToStateMapping.state.GetRwnd(), packet);
+    tcpHeader.SetUrgentPtr(0, packet);
+
+    // Determine what kind of packet it is
+    switch (tcpHeaderType) {
+        case SYN:
+            SET_SYN(flags);
+            cerr << "HEADER_TYPE = SYN" << endl;
+            break;
+
+        case ACK:
+            SET_ACK(flags);
+            cerr << "HEADER_TYPE = ACK" << endl;
+            break;
+
+        case SYNACK:
+            SET_ACK(flags);
+            SET_SYN(flags);
+            cerr << "HEADER_TYPE = SYNACK" << endl;
+            break;
+
+        case PSHACK:
+            SET_PSH(flags);
+            SET_ACK(flags);
+            cerr << "HEADER_TYPE = PSHACK" << endl;
+            break;
+
+        case FIN:
+            SET_FIN(flags);
+            cerr << "HEADER_TYPE = FIN" << endl;
+            break;
+
+        case FINACK:
+            SET_FIN(flags);
+            SET_ACK(flags);
+            cerr << "HEADER_TYPE = FINACK" << endl;
+            break;
+
+        case HEADERTYPE_RST:
+            SET_RST(flags);
+            cerr << "HEADER_TYPE = RESET" << endl;
+            break;
+
+        default:
+            break;
+    }
+
+    // Set the flag type
+    tcpHeader.SetFlags(flags, packet);
+
+    // Print out the finished TCP header
+    cerr << "\nTCPHeader: \n" << tcpHeader << endl;
+
+	//Not entirely sure what to set the sequence number as here
+    tcpHeader.SetSeqNum(connectionToStateMapping.state.GetLastSent(), packet);
+
+    // Recompute the packet's checksum
+    tcpHeader.RecomputeChecksum(packet);
+
+    // Add header to packet
+    packet.PushBackHeader(tcpHeader);
+
+    cerr << "END OF PACKET CREATION\n" << endl;
+}
 
 void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionList<TCPState> &connectionList) {
     SockRequestResponse socketRequest;
@@ -469,7 +465,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
             ConnectionToStateMapping<TCPState> newConnectionToStateMapping
                     = ConnectionToStateMapping<TCPState>(socketRequest.connection, Time() + 3, clientState, true);
 
-            //MAKE PACKET
+			make_packet(packet, newConnectionToStateMapping, SYN, 0);
             MinetSend(mux, packet);
 
             socketReply.type = STATUS;
