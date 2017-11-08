@@ -187,7 +187,14 @@ int main(int argc, char *argv[]) {
                                 m.state.last_sent++;
                                 m.state.SetState(SYN_SENT1);
 
-                                cerr << "Connection established with " << remoteAddr << "\n";
+                                if (m.state.GetState == SYN_SENT) {
+                                    // Informing the socket
+                                    Buffer b;
+                                    SockRequestResponse acceptResponse(WRITE, m.connection, b, 0, EOK);
+                                    MinetSend(sock, acceptResponse);
+                                    
+                                    cerr << "Connection established with " << remoteAddr << "\n";
+                                }
                                 break;
                             }
                         }
@@ -283,7 +290,7 @@ int main(int argc, char *argv[]) {
                             cerr << "Acknowledgement confirmed";
                         }
 
-                        // Completing handshake
+                        // Completing handshake for passive open
                         if (m.state.GetState() == SYN_RCVD) {
                             m.state.SetState(ESTABLISHED);
 
@@ -293,6 +300,11 @@ int main(int argc, char *argv[]) {
                             MinetSend(sock, acceptResponse);
 
                             cerr << "Connection accepted with " << remoteAddr << "\n";
+                        }
+
+                        // Completing handshake for passive open
+                        if (m.state.GetState() == SYN_SENT1) {
+                            m.state.SetState(ESTABLISHED);
                         }
                     }
 
