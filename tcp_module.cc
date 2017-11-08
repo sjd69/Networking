@@ -146,9 +146,52 @@ int main(int argc, char *argv[]) {
                 Connection c (localAddr, remoteAddr, localPort, remotePort, IP_PROTO_TCP);
                 if (IS_SYN(flags)) {
                     if (IS_ACK(flags)) { // Active open
-                        // TODO Implement client side active open handling
-                    } else { // Passive open
+                        ConnectionList<TCPState>::iterator it;
+                        for (it = connections.begin(); it != connections.end(); it++) {
+                            ConnectionToStateMapping<TCPState> &m = *it;
+                            if ((m.state.GetState() == SYN_SENT || m.state.GetState() == SYN_SENT1)
+                                    && m.connection.Matches(c)) {
+                                Packet resp;
 
+                                // IP HEADER
+                                IPHeader ipResp;
+                                generateIPHeader(ipResp, localAddr, remoteAddr, 0); // TODO Implement better source of our IP address
+                                resp.PushFrontHeader(ipResp);
+
+                                // TCP HEADER
+                                TCPHeader tcpResp;
+                                // Sequence number
+                                unsigned int s_seq = m.state.last_sent;
+                                unsigned int passedAck;
+                                th.GetAckNum(passedAck);
+                                if (passedAck != s_seq)
+                                    continue;
+
+                                // Acknowledgement number
+                                unsigned int dSeq;
+                                th.GetSeqNum(dSeq);
+                                dSeq += 1;
+                                // Flags
+                                CLR_SYN(flags);
+                                // Window size
+                                unsigned short windowSize = MSS;
+                                // Generate TCP header
+                                generateTCPHeader(tcpResp, resp, localPort, remotePort, m.state.last_sent, dSeq, flags, windowSize);
+                                // Push to stack
+                                resp.PushBackHeader(tcpResp);
+
+                                tcpResp.ComputeChecksum(resp);
+                                MinetSend(mux, resp);
+
+                                m.state.last_acked = m.state.last_sent;
+                                m.state.last_sent++;
+                                m.state.SetState(SYN_SENT1);
+
+                                cerr << "Connection established with " << remoteAddr << "\n";
+                                break;
+                            }
+                        }
+                    } else { // Passive open
                         ConnectionList<TCPState>::iterator it;
                         int connectionListSize = connections.size();
                         int i = 0;
@@ -195,6 +238,7 @@ int main(int argc, char *argv[]) {
                                 m.state.SetLastAcked(0);
                                 m.state.SetLastRecvd(dSeq);
                                 m.connection = c;
+                                m.bTmrActive = 0;
 
                                 success = 1;
                                 break;
@@ -361,7 +405,7 @@ void generateTCPHeader(TCPHeader &h, Packet &p, unsigned short srcPort, unsigned
 }
 
 void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionToStateMapping,
-                 HEADER_TYPE tcpHeaderType, int sizeOfData) {
+                 HEADER_TYPES tcpHeaderType, int sizeOfData) {
     cerr << "Creating a Packet" << endl;
     unsigned char flags = 0;
     int packetSize = sizeOfData + TCP_HEADER_BASE_LENGTH + IP_HEADER_BASE_LENGTH;
@@ -420,7 +464,7 @@ void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionT
             cerr << "HEADER_TYPE = FINACK" << endl;
             break;
 
-        case HEADERTYPE_RST:
+        case RESET:
             SET_RST(flags);
             cerr << "HEADER_TYPE = RESET" << endl;
             break;
