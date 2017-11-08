@@ -525,6 +525,7 @@ void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionT
 void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionList<TCPState> &connectionList) {
     SockRequestResponse socketRequest;
     SockRequestResponse socketReply;
+    Packet packet;
 
     MinetReceive(sock, socketRequest);
 
@@ -533,7 +534,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
     switch(socketRequest.type) {
         case CONNECT: {
             cerr << "\nSOCKET HANDLER - CONNECT\n" << endl;
-            Packet packet;
+
             TCPState clientState = TCPState(0, SYN_SENT, 6);
             clientState.last_sent = 1; // Using last_sent as next ack for simplicity of other parts -Brendan
             clientState.last_acked = 0; // Using last_acked as ack for last packet
@@ -575,14 +576,53 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
             break;
         } case WRITE:
+            cerr << "\nSOCKET HANDLER - CONNECTION WRITE\n" << endl;
+
+            unsigned int connState = cs.state.GetState();
+
+            if (state == ESTABLISHED) {
+                Buffer buf = socketRequest.data;
+
+                unsigned int bytes = socketRequest.data.GetSize();
+
+                make_packet(packet, *cs, bytes, PSHACK);
+                MinetSend(mux, packet);
+
+                socketReply.connection = socketRequest.connection;
+                socketReply.type = STATUS;
+                socketReply.bytes = bytes;
+                socketReply.error = EOK;
+                
+                MinetSend(sock, socketReply);
+            }
             break;
         case FORWARD:
+            socketReply.type = STATUS;
+            socketReply.error = EOK;
+            MinetSend(sock, socketReply);
             break;
         case CLOSE:
+            cerr << "\nSOCKET HANDLER - CONNECTION CLOSE\n" << endl;
+            unsigned  int connState = cs.state.GetState();
+
+            if (connState == ESTABLISHED) {
+                cs.state.SetState(FIN_WAIT1);
+                cs.state.last_acked = cs.state.last_sent;
+
+                make_packet(packet, *cs, FIN, 0);
+                MinetSend(mux, packet);
+
+                socketReply.type = STATUS;
+                socketreply.connection = socketRequest.connection;
+                socketReply.error = EOK;
+                MinetSend(sock, socketReply);
+            }
             break;
         case STATUS:
+            //DO we need anything for status?
             break;
         default:
+            //DO we need anything for default?
             break;
 
     }
