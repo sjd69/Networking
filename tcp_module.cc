@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
                                 m.state.SetLastRecvd(dSeq);
                                 m.bTmrActive = 0;
 
-                                if (m.state.GetState == SYN_SENT) {
+                                if (m.state.GetState() == SYN_SENT) {
                                     // Informing the socket
                                     Buffer b;
                                     SockRequestResponse acceptResponse(WRITE, m.connection, b, 0, EOK);
@@ -364,6 +364,11 @@ int main(int argc, char *argv[]) {
 
                         tcpResp.ComputeChecksum(resp);
                         MinetSend(mux, resp);
+
+                        if (writeNeeded) {
+                            m.timeout = Time() + 1;
+                            m.bTmrActive = 1;
+                        }
                     }
                 }
             }
@@ -493,7 +498,7 @@ void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionT
     cerr << "\nTCPHeader: \n" << tcpHeader << endl;
 
 	//Not entirely sure what to set the sequence number as here
-    tcpHeader.SetSeqNum(connectionToStateMapping.state.GetLastSent(), packet);
+    tcpHeader.SetSeqNum(connectionToStateMapping.state.last_acked, packet); // See comments for CONNECT about change - Brendan
 
     // Recompute the packet's checksum
     tcpHeader.RecomputeChecksum(packet);
@@ -517,6 +522,8 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
             cerr << "\nSOCKET HANDLER - CONNECT\n" << endl;
             Packet packet;
             TCPState clientState = TCPState(0, SYN_SENT, 3);
+            clientState.last_sent = 1; // Using last_sent as next ack for simplicity of other parts -Brendan
+            clientState.last_acked = 0; // Using last_acked as ack for last packet
 
             //What to set timeout as?
             ConnectionToStateMapping<TCPState> newConnectionToStateMapping
