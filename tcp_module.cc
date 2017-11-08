@@ -79,6 +79,7 @@ void generateTCPHeader(TCPHeader &, Packet &, unsigned short, unsigned short, un
 
 void generateIPHeader(IPHeader &, IPAddress, IPAddress, unsigned short);
 void socket_handler(const MinetHandle&, const MinetHandle&, ConnectionList<TCPState>&);
+void timeoutHandler(const MinetHandle&, const MinetHandle&, ConnectionList<TCPState>&);
 
 int main(int argc, char *argv[]) {
     MinetHandle mux;
@@ -146,11 +147,15 @@ int main(int argc, char *argv[]) {
                 Connection c (localAddr, remoteAddr, localPort, remotePort, IP_PROTO_TCP);
                 if (IS_SYN(flags)) {
                     if (IS_ACK(flags)) { // Active open
+                        cerr << "Received SYNACK\n";
                         ConnectionList<TCPState>::iterator it;
+                        cerr << connections.size() << "\n";
                         for (it = connections.begin(); it != connections.end(); it++) {
                             ConnectionToStateMapping<TCPState> &m = *it;
+                            cerr << "Enters loop\n";
                             if ((m.state.GetState() == SYN_SENT || m.state.GetState() == SYN_SENT1)
                                     && m.connection.Matches(c)) {
+                                cerr << "Enters if\n";
                                 Packet resp;
 
                                 // IP HEADER
@@ -164,6 +169,7 @@ int main(int argc, char *argv[]) {
                                 unsigned int s_seq = m.state.last_sent;
                                 unsigned int passedAck;
                                 th.GetAckNum(passedAck);
+                                cerr << s_seq << " vs. " << passedAck << "\n";
                                 if (passedAck != s_seq)
                                     continue;
 
@@ -181,13 +187,8 @@ int main(int argc, char *argv[]) {
                                 resp.PushBackHeader(tcpResp);
 
                                 tcpResp.ComputeChecksum(resp);
+                                cerr << "Sending back ACK";
                                 MinetSend(mux, resp);
-
-                                m.state.last_acked = m.state.last_sent;
-                                m.state.last_sent++;
-                                m.state.SetState(SYN_SENT1);
-                                m.state.SetLastRecvd(dSeq);
-                                m.bTmrActive = 0;
 
                                 if (m.state.GetState() == SYN_SENT) {
                                     // Informing the socket
@@ -197,6 +198,12 @@ int main(int argc, char *argv[]) {
 
                                     cerr << "Connection established with " << remoteAddr << "\n";
                                 }
+
+                                m.state.last_acked = m.state.last_sent;
+                                m.state.last_sent++;
+                                m.state.SetState(SYN_SENT1);
+                                m.state.SetLastRecvd(dSeq);
+                                m.bTmrActive = 0;
                                 break;
                             }
                         }
@@ -380,10 +387,16 @@ int main(int argc, char *argv[]) {
         }
 
         if (event.eventtype == MinetEvent::Timeout) {
-            // timeout ! probably need to resend some packets
-            //cerr << "Timer\n";
+            timeoutHandler(mux, sock, connections);
         }
 
+        // Timeout setup
+        ConnectionList<TCPState>::iterator it = connections.FindEarliest();
+        if (it != connections.end()) {
+            cerr << "Some time found!\n";
+            Time& t = (*it).timeout;
+            timeout = double(t) - double(Time());
+        }
     }
 
     MinetDeinit();
@@ -521,7 +534,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
         case CONNECT: {
             cerr << "\nSOCKET HANDLER - CONNECT\n" << endl;
             Packet packet;
-            TCPState clientState = TCPState(0, SYN_SENT, 3);
+            TCPState clientState = TCPState(0, SYN_SENT, 6);
             clientState.last_sent = 1; // Using last_sent as next ack for simplicity of other parts -Brendan
             clientState.last_acked = 0; // Using last_acked as ack for last packet
 
@@ -537,6 +550,8 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
             socketReply.connection = socketRequest.connection;
             MinetSend(sock, socketReply);
             cerr << "\nSOCKET HANDLER - CONNECTION CREATED\n" << endl;
+
+            connectionList.push_front(newConnectionToStateMapping);
 
             break;
         } case ACCEPT: {
@@ -570,5 +585,46 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
         default:
             break;
 
+    }
+}
+
+void timeoutHandler(const MinetHandle& mux, const MinetHandle& sock, ConnectionList<TCPState>& connections) {
+    ConnectionList<TCPState>::iterator it = connections.FindEarliest();
+    while (it != connections.end() && (*it).timeout < Time()) {
+        ConnectionToStateMapping<TCPState> &m = *it;
+        if (m.state.GetState() == SYN_SENT) {
+            m.state.tmrTries--;
+            if (m.state.tmrTries > 0) {
+                Packet resp;
+
+                // IP HEADER
+                IPHeader ipResp;
+                generateIPHeader(ipResp, m.connection.src, m.connection.dest, 0);
+                resp.PushFrontHeader(ipResp);
+
+                // TCP HEADER
+                TCPHeader tcpResp;
+                unsigned int s_seq = m.state.last_acked;
+                unsigned int ackNum = 0;
+                unsigned char flags = 0;
+                SET_SYN(flags);
+                generateTCPHeader(tcpResp, resp, m.connection.srcport, m.connection.destport, s_seq, ackNum, flags, MSS);
+                resp.PushBackHeader(tcpResp);
+
+                MinetSend(mux, resp);
+                cerr << "\nSYN to " << m.connection.dest << "retransmitted\n";
+
+                // Reset timer
+                m.timeout = Time() + 3;
+
+            } else {
+                Buffer b;
+                SockRequestResponse resp (CONNECT, m.connection, b, 0, ECONN_FAILED);
+                MinetSend(sock, resp);
+                connections.erase(it);
+            }
+        }
+
+        it = connections.FindEarliest();
     }
 }
