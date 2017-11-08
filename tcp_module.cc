@@ -186,6 +186,7 @@ int main(int argc, char *argv[]) {
                                 m.state.last_acked = m.state.last_sent;
                                 m.state.last_sent++;
                                 m.state.SetState(SYN_SENT1);
+                                m.state.SetLastRecvd(dSeq);
                                 m.bTmrActive = 0;
 
                                 if (m.state.GetState == SYN_SENT) {
