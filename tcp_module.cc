@@ -79,7 +79,7 @@ void generateTCPHeader(TCPHeader &, Packet &, unsigned short, unsigned short, un
 
 void generateIPHeader(IPHeader &, IPAddress, IPAddress, unsigned short);
 void socket_handler(const MinetHandle&, const MinetHandle&, ConnectionList<TCPState>&);
-void timeoutHandler(const MinetHandle&, const MinetHandle&, ConnectionList<TCPState>&);
+void timeout_handler(const MinetHandle&, const MinetHandle&, ConnectionList<TCPState>&);
 
 int main(int argc, char *argv[]) {
     MinetHandle mux;
@@ -387,7 +387,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (event.eventtype == MinetEvent::Timeout) {
-            timeoutHandler(mux, sock, connections);
+            timeout_handler(mux, sock, connections);
         }
 
         // Timeout setup
@@ -576,15 +576,16 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
             break;
         } case WRITE:
+        {
             cerr << "\nSOCKET HANDLER - CONNECTION WRITE\n" << endl;
 
-            unsigned int connState = cs.state.GetState();
+            unsigned int connState = (*cs).state.GetState();
 
-            if (state == ESTABLISHED) {
+            if (connState == ESTABLISHED) {
                 unsigned int bytes = socketRequest.data.GetSize();
                 packet = Packet(socketRequest.data.ExtractFront(bytes));
 
-                make_packet(packet, *cs, bytes, PSHACK);
+                make_packet(packet, *cs, PSHACK, bytes);
                 MinetSend(mux, packet);
 
                 socketReply.connection = socketRequest.connection;
@@ -594,6 +595,8 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
                 MinetSend(sock, socketReply);
             }
+        }
+
             break;
         case FORWARD:
             socketReply.type = STATUS;
@@ -601,21 +604,23 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
             MinetSend(sock, socketReply);
             break;
         case CLOSE:
+        {
             cerr << "\nSOCKET HANDLER - CONNECTION CLOSE\n" << endl;
-            unsigned  int connState = cs.state.GetState();
+            unsigned  int connState = (*cs).state.GetState();
 
             if (connState == ESTABLISHED) {
-                cs.state.SetState(FIN_WAIT1);
-                cs.state.last_acked = cs.state.last_sent;
+                (*cs).state.SetState(FIN_WAIT1);
+                (*cs).state.last_acked = (*cs).state.last_sent;
 
                 make_packet(packet, *cs, FIN, 0);
                 MinetSend(mux, packet);
 
                 socketReply.type = STATUS;
-                socketreply.connection = socketRequest.connection;
+                socketReply.connection = socketRequest.connection;
                 socketReply.error = EOK;
                 MinetSend(sock, socketReply);
             }
+        }
             break;
         case STATUS:
             //DO we need anything for status?
@@ -631,40 +636,63 @@ void timeout_handler(const MinetHandle& mux, const MinetHandle& sock, Connection
 
     cerr << "\nTIMEOUT HANDLER\n" << endl;
     ConnectionList<TCPState>::iterator it = connections.FindEarliest();
-    unsigned int state = it.state.GetState();
+    unsigned int state = (*it).state.GetState();
 
     ConnectionToStateMapping<TCPState> &connectionToStateMapping = *it;
 
     Packet packet;
-    Buffer buf;
+    char* buf;
 
     switch (state) {
         case SYN_SENT:
+        {
+            cerr << "\nSYN_SENT\n" << endl;
             make_packet(packet, *it, SYN, 0);
             MinetSend(mux, packet);
+        }
+
             break;
         case SYN_RCVD:
+        {
+            cerr << "\nSYN_RCVD\n" << endl;
             make_packet(packet, *it, SYNACK, 0);
             MinetSend(mux, packet);
+        }
+
             break;
         case ESTABLISHED:
+        {
+            cerr << "\nESTABLISHED\n" << endl;
             int bufLen = connectionToStateMapping.state.SendBuffer.GetSize();
             int data = connectionToStateMapping.state.SendBuffer.GetData(buf, bufLen, 0);
             packet = Packet(buf, data);
-            MinetSend(buf, packet);
+            MinetSend(mux, packet);
+        }
+
             break;
         case FIN_WAIT1:
+        {
+            cerr << "\nFIN_WAIT1\n" << endl;
             make_packet(packet, *it, FIN, 0);
             MinetSend(mux, packet);
+        }
+
             break;
         case LAST_ACK:
+        {
+            cerr << "\nLACK_ACK\n" << endl;
             make_packet(packet, *it, FIN, 0);
             MinetSend(mux, packet);
+        }
+
             break;
         case TIME_WAIT:
-            cerr << "\nTIME WAIT\n" << endl;
-            it.state.SetState(CLOSED);
+        {
+            cerr << "\nTIME_WAIT\n" << endl;
+            (*it).state.SetState(CLOSED);
             connections.erase(it);
+        }
+
             break;
     }
 
