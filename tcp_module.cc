@@ -186,13 +186,14 @@ int main(int argc, char *argv[]) {
                                 m.state.last_acked = m.state.last_sent;
                                 m.state.last_sent++;
                                 m.state.SetState(SYN_SENT1);
+                                m.bTmrActive = 0;
 
                                 if (m.state.GetState == SYN_SENT) {
                                     // Informing the socket
                                     Buffer b;
                                     SockRequestResponse acceptResponse(WRITE, m.connection, b, 0, EOK);
                                     MinetSend(sock, acceptResponse);
-                                    
+
                                     cerr << "Connection established with " << remoteAddr << "\n";
                                 }
                                 break;
@@ -245,7 +246,6 @@ int main(int argc, char *argv[]) {
                                 m.state.SetLastAcked(0);
                                 m.state.SetLastRecvd(dSeq);
                                 m.connection = c;
-                                m.bTmrActive = 0;
 
                                 success = 1;
                                 break;
