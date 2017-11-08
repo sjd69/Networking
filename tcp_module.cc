@@ -581,9 +581,8 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
             unsigned int connState = cs.state.GetState();
 
             if (state == ESTABLISHED) {
-                Buffer buf = socketRequest.data;
-
                 unsigned int bytes = socketRequest.data.GetSize();
+                packet = Packet(socketRequest.data.ExtractFront(bytes));
 
                 make_packet(packet, *cs, bytes, PSHACK);
                 MinetSend(mux, packet);
@@ -592,7 +591,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
                 socketReply.type = STATUS;
                 socketReply.bytes = bytes;
                 socketReply.error = EOK;
-                
+
                 MinetSend(sock, socketReply);
             }
             break;
@@ -628,43 +627,83 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
     }
 }
 
-void timeoutHandler(const MinetHandle& mux, const MinetHandle& sock, ConnectionList<TCPState>& connections) {
+void timeout_handler(const MinetHandle& mux, const MinetHandle& sock, ConnectionList<TCPState>& connections) {
+
+    cerr << "\nTIMEOUT HANDLER\n" << endl;
     ConnectionList<TCPState>::iterator it = connections.FindEarliest();
-    while (it != connections.end() && (*it).timeout < Time()) {
-        ConnectionToStateMapping<TCPState> &m = *it;
-        if (m.state.GetState() == SYN_SENT) {
-            m.state.tmrTries--;
-            if (m.state.tmrTries > 0) {
-                Packet resp;
+    unsigned int state = it.state.GetState();
 
-                // IP HEADER
-                IPHeader ipResp;
-                generateIPHeader(ipResp, m.connection.src, m.connection.dest, 0);
-                resp.PushFrontHeader(ipResp);
+    ConnectionToStateMapping<TCPState> &connectionToStateMapping = *it;
 
-                // TCP HEADER
-                TCPHeader tcpResp;
-                unsigned int s_seq = m.state.last_acked;
-                unsigned int ackNum = 0;
-                unsigned char flags = 0;
-                SET_SYN(flags);
-                generateTCPHeader(tcpResp, resp, m.connection.srcport, m.connection.destport, s_seq, ackNum, flags, MSS);
-                resp.PushBackHeader(tcpResp);
+    Packet packet;
+    Buffer buf;
 
-                MinetSend(mux, resp);
-                cerr << "\nSYN to " << m.connection.dest << "retransmitted\n";
-
-                // Reset timer
-                m.timeout = Time() + 3;
-
-            } else {
-                Buffer b;
-                SockRequestResponse resp (CONNECT, m.connection, b, 0, ECONN_FAILED);
-                MinetSend(sock, resp);
-                connections.erase(it);
-            }
-        }
-
-        it = connections.FindEarliest();
+    switch (state) {
+        case SYN_SENT:
+            make_packet(packet, *it, SYN, 0);
+            MinetSend(mux, packet);
+            break;
+        case SYN_RCVD:
+            make_packet(packet, *it, SYNACK, 0);
+            MinetSend(mux, packet);
+            break;
+        case ESTABLISHED:
+            int bufLen = connectionToStateMapping.state.SendBuffer.GetSize();
+            int data = connectionToStateMapping.state.SendBuffer.GetData(buf, bufLen, 0);
+            packet = Packet(buf, data);
+            MinetSend(buf, packet);
+            break;
+        case FIN_WAIT1:
+            make_packet(packet, *it, FIN, 0);
+            MinetSend(mux, packet);
+            break;
+        case LAST_ACK:
+            make_packet(packet, *it, FIN, 0);
+            MinetSend(mux, packet);
+            break;
+        case TIME_WAIT:
+            cerr << "\nTIME WAIT\n" << endl;
+            it.state.SetState(CLOSED);
+            connections.erase(it);
+            break;
     }
+
+//    ConnectionList<TCPState>::iterator it = connections.FindEarliest();
+//    while (it != connections.end() && (*it).timeout < Time()) {
+//        ConnectionToStateMapping<TCPState> &m = *it;
+//        if (m.state.GetState() == SYN_SENT) {
+//            m.state.tmrTries--;
+//            if (m.state.tmrTries > 0) {
+//                Packet resp;
+//
+//                // IP HEADER
+//                IPHeader ipResp;
+//                generateIPHeader(ipResp, m.connection.src, m.connection.dest, 0);
+//                resp.PushFrontHeader(ipResp);
+//
+//                // TCP HEADER
+//                TCPHeader tcpResp;
+//                unsigned int s_seq = m.state.last_acked;
+//                unsigned int ackNum = 0;
+//                unsigned char flags = 0;
+//                SET_SYN(flags);
+//                generateTCPHeader(tcpResp, resp, m.connection.srcport, m.connection.destport, s_seq, ackNum, flags, MSS);
+//                resp.PushBackHeader(tcpResp);
+//
+//                MinetSend(mux, resp);
+//                cerr << "\nSYN to " << m.connection.dest << "retransmitted\n";
+//
+//                // Reset timer
+//                m.timeout = Time() + 3;
+//
+//            } else {
+//                Buffer b;
+//                SockRequestResponse resp (CONNECT, m.connection, b, 0, ECONN_FAILED);
+//                MinetSend(sock, resp);
+//                connections.erase(it);
+//            }
+//        }
+//
+//        it = connections.FindEarliest();
+//    }
 }
