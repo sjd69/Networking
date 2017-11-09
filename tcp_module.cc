@@ -610,30 +610,32 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
                 unsigned int bytes = socketRequest.data.GetSize();
                 TCPState *state = &cs->state;
 
-                if (bytes <= MSS) {
-                    state->SendBuffer.AddBack(socketRequest.data);
-                } else {
-                    bytes = MSS;
-                    Buffer partial = socketRequest.data.ExtractFront(bytes);
-                    state->SendBuffer.AddBack(partial);
+                state->SendBuffer.AddBack(socketRequest.data);
+
+                if (state->last_sent != state->last_acked) {
+
+                    bytes = state->SendBuffer.GetSize();
+                    if (bytes > MSS)
+                        bytes = MSS;
+
+                    char buf[MSS];
+                    state->SendBuffer.GetData(buf, bytes, 0);
+                    packet = Packet(buf, bytes);
+
+                    IPHeader ip;
+                    generateIPHeader(ip, (*cs).connection.src, (*cs).connection.dest, bytes);
+                    packet.PushFrontHeader(ip);
+
+                    TCPHeader tcp;
+                    unsigned char flags;
+                    SET_PSH(flags);
+                    SET_ACK(flags);
+                    generateTCPHeader(tcp, packet, (*cs).connection.srcport, (*cs).connection.destport,
+                                        (*cs).state.last_acked, (*cs).state.last_recvd, flags, MSS);
+                    packet.PushBackHeader(tcp);
+
+                    MinetSend(mux, packet);
                 }
-
-
-                packet = Packet(state->SendBuffer);
-
-                IPHeader ip;
-                generateIPHeader(ip, (*cs).connection.src, (*cs).connection.dest, bytes);
-                packet.PushFrontHeader(ip);
-
-                TCPHeader tcp;
-                unsigned char flags;
-                SET_PSH(flags);
-                SET_ACK(flags);
-                generateTCPHeader(tcp, packet, (*cs).connection.srcport, (*cs).connection.destport,
-                                  (*cs).state.last_acked, (*cs).state.last_recvd, flags, MSS);
-                packet.PushBackHeader(tcp);
-
-                MinetSend(mux, packet);
 
                 (*cs).state.last_sent = (*cs).state.last_acked + bytes;
 
