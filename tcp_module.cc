@@ -297,8 +297,9 @@ int main(int argc, char *argv[]) {
                             m.state.last_acked = m.state.last_sent;
                             cerr << "Acknowledgement confirmed";
 
-                            if (m.state.GetState() == CLOSING)
+                            if (m.state.GetState() == CLOSING) {
                                 connections.erase(it);
+                            }
 
                             //if (m.state.GetState() == FIN_WAIT1)
                             //    m.state.SetState(CLOSE_WAIT);
@@ -347,7 +348,7 @@ int main(int argc, char *argv[]) {
                     // OUTGOING DATA
                     bool writeNeeded = m.state.last_sent == m.state.last_acked && m.state.SendBuffer.GetSize() > 0;
 
-                    if (IS_FIN(flags))
+                    if (IS_FIN(flags)) {
                         if (m.state.GetState() == CLOSE_WAIT) {
                             // TODO
                         } else if (m.state.GetState() == ESTABLISHED) {
@@ -356,7 +357,12 @@ int main(int argc, char *argv[]) {
                             ackNeeded = 1;
                             if (dataLength == 0)
                                 m.state.last_recvd++;
+
+                            Buffer b;
+                            SockRequestResponse resp (CLOSE, c, b, 0, EOK);
+                            MinetSend(sock, resp);
                         }
+                    }
 
                     // WRITING TO REMOTE
                     if (ackNeeded || writeNeeded) {
