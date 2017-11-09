@@ -262,16 +262,13 @@ int main(int argc, char *argv[]) {
                         if (!success)
                             cerr << "SYN packet caught, but no one was listening.\n";
                     }
-
-                } else if (IS_FIN(flags)) {
-                    // TODO Implement closing logic
                 } else {
                     ConnectionList<TCPState>::iterator it = connections.FindMatching(c);
                     ConnectionToStateMapping<TCPState> &m = *it;
 
                     unsigned short dataLength;
                     unsigned char headerLength;
-                    bool ackNeeded = 0;
+                    bool ackNeeded = 0, finNeeded = 0;
 
                     ih.GetTotalLength(dataLength);
                     cerr << "Total packet length: " << dataLength << "\n";
@@ -299,6 +296,13 @@ int main(int argc, char *argv[]) {
                             // Saving ACKed position
                             m.state.last_acked = m.state.last_sent;
                             cerr << "Acknowledgement confirmed";
+
+                            if (m.state.GetState() == CLOSING) {
+                                connections.erase(it);
+                            }
+
+                            //if (m.state.GetState() == FIN_WAIT1)
+                            //    m.state.SetState(CLOSE_WAIT);
                         }
 
                         // Completing handshake for passive open
@@ -344,6 +348,22 @@ int main(int argc, char *argv[]) {
                     // OUTGOING DATA
                     bool writeNeeded = m.state.last_sent == m.state.last_acked && m.state.SendBuffer.GetSize() > 0;
 
+                    if (IS_FIN(flags)) {
+                        if (m.state.GetState() == CLOSE_WAIT) {
+                            // TODO
+                        } else if (m.state.GetState() == ESTABLISHED) {
+                            m.state.SetState(CLOSING);
+                            finNeeded = 1;
+                            ackNeeded = 1;
+                            if (dataLength == 0)
+                                m.state.last_recvd++;
+
+                            Buffer b;
+                            SockRequestResponse resp (CLOSE, c, b, 0, EOK);
+                            MinetSend(sock, resp);
+                        }
+                    }
+
                     // WRITING TO REMOTE
                     if (ackNeeded || writeNeeded) {
                         Packet resp;
@@ -369,6 +389,8 @@ int main(int argc, char *argv[]) {
                             SET_ACK(flags);
                         if (writeNeeded)
                             SET_PSH(flags);
+                        if (finNeeded)
+                            SET_FIN(flags);
                         generateTCPHeader(tcpResp, resp, localPort, remotePort, m.state.last_sent, m.state.last_recvd, flags, MSS);
                         resp.PushBackHeader(tcpResp);
 
