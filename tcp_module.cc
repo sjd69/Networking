@@ -198,7 +198,6 @@ int main(int argc, char *argv[]) {
 
                                     cerr << "Connection established with " << remoteAddr << "\n";
                                     m.state.last_acked = m.state.last_sent;
-                                    m.state.last_sent++;
                                 }
 
                                 m.state.SetState(SYN_SENT1);
