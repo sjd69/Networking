@@ -288,6 +288,9 @@ int main(int argc, char *argv[]) {
                         unsigned int ack;
                         th.GetAckNum(ack);
 
+                        if (m.state.GetState() == SYN_SENT1)
+                            m.state.SetState(ESTABLISHED);
+
                         // Saving valid acknowledgements.
                         if (ack == m.state.GetLastSent()) {
                             // Dropping data from buffer
@@ -581,7 +584,7 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
             unsigned int connState = (*cs).state.GetState();
 
-            if (connState == ESTABLISHED) {
+            if (connState == ESTABLISHED || connState == SYN_SENT1) {
                 unsigned int bytes = socketRequest.data.GetSize();
                 packet = Packet(socketRequest.data.ExtractFront(bytes));
 
