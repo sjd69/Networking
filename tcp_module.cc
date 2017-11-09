@@ -785,7 +785,7 @@ void timeout_handler(const MinetHandle& mux, const MinetHandle& sock, Connection
              MinetSend(sock, resp);
                 connections.erase(it);
             }
-        } else if (m.state.GetState() == ESTABLISHED) {
+        } else if (m.state.GetState() == ESTABLISHED && m.state.last_sent != m.state.last_acked) {
             m.state.tmrTries--;
             if (m.state.tmrTries > 0) {
                 cerr << "\nRETRANSMIT\n" << endl;
