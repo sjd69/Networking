@@ -197,10 +197,10 @@ int main(int argc, char *argv[]) {
                                     MinetSend(sock, acceptResponse);
 
                                     cerr << "Connection established with " << remoteAddr << "\n";
+                                    m.state.last_acked = m.state.last_sent;
+                                    m.state.last_sent++;
                                 }
 
-                                m.state.last_acked = m.state.last_sent;
-                                m.state.last_sent++;
                                 m.state.SetState(SYN_SENT1);
                                 m.state.SetLastRecvd(dSeq);
                                 m.bTmrActive = 0;
@@ -285,8 +285,10 @@ int main(int argc, char *argv[]) {
                         unsigned int ack;
                         th.GetAckNum(ack);
 
-                        if (m.state.GetState() == SYN_SENT1)
+                        if (m.state.GetState() == SYN_SENT1) {
                             m.state.SetState(ESTABLISHED);
+                        }
+
 
                         // Saving valid acknowledgements.
                         if (ack == m.state.last_sent) {
@@ -304,6 +306,8 @@ int main(int argc, char *argv[]) {
                             //if (m.state.GetState() == FIN_WAIT1)
                             //    m.state.SetState(CLOSE_WAIT);
                         }
+
+                        cerr << m.state.last_sent << " " << m.state.last_acked << "\n";
 
                         // Completing handshake for passive open
                         if (m.state.GetState() == SYN_RCVD) {
@@ -371,10 +375,13 @@ int main(int argc, char *argv[]) {
 
                         if (writeNeeded) {
                             char buf[MSS];
-                            payloadLength = m.state.SendBuffer.GetData(buf, MSS, 0);
+                            size_t size = m.state.SendBuffer.GetSize();
+                            payloadLength = size;
+                            if (size > MSS)
+                                size = MSS;
+                            m.state.SendBuffer.GetData(buf, size, 0);
                             const char* constBuf = buf;
-                            size_t payloadSize = payloadLength;
-                            resp = Packet(constBuf, payloadSize);
+                            resp = Packet(constBuf, size);
                         } else
                             payloadLength = 0;
 
@@ -612,7 +619,8 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
                 state->SendBuffer.AddBack(socketRequest.data);
 
-                if (state->last_sent != state->last_acked) {
+                cerr << state->last_sent << " " <<state->last_acked << "\n";
+                if (state->last_sent == state->last_acked) {
 
                     bytes = state->SendBuffer.GetSize();
                     if (bytes > MSS)
@@ -635,9 +643,9 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
                     packet.PushBackHeader(tcp);
 
                     MinetSend(mux, packet);
-                }
 
-                (*cs).state.last_sent = (*cs).state.last_acked + bytes;
+                    (*cs).state.last_sent = (*cs).state.last_acked + bytes;
+                }
 
                 socketReply.connection = socketRequest.connection;
                 socketReply.type = STATUS;
