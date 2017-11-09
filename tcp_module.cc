@@ -292,12 +292,12 @@ int main(int argc, char *argv[]) {
                             m.state.SetState(ESTABLISHED);
 
                         // Saving valid acknowledgements.
-                        if (ack == m.state.GetLastSent()) {
+                        if (ack == m.state.last_sent) {
                             // Dropping data from buffer
                             m.state.SendBuffer.ExtractFront(m.state.last_sent - m.state.last_acked);
 
                             // Saving ACKed position
-                            m.state.SetLastAcked(ack);
+                            m.state.last_acked = m.state.last_sent;
                             cerr << "Acknowledgement confirmed";
                         }
 
@@ -457,7 +457,7 @@ void make_packet(Packet &packet, ConnectionToStateMapping<TCPState> &connectionT
     // Create the TCP Header
     tcpHeader.SetSourcePort(connectionToStateMapping.connection.srcport, packet);
     tcpHeader.SetDestPort(connectionToStateMapping.connection.destport, packet);
-    tcpHeader.SetHeaderLen(TCP_HEADER_BASE_LENGTH, packet);
+    tcpHeader.SetHeaderLen(5, packet);
 
     tcpHeader.SetAckNum(connectionToStateMapping.state.GetLastRecvd(), packet);
     tcpHeader.SetWinSize(connectionToStateMapping.state.GetRwnd(), packet);
@@ -588,8 +588,20 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
                 unsigned int bytes = socketRequest.data.GetSize();
                 packet = Packet(socketRequest.data.ExtractFront(bytes));
 
-                make_packet(packet, *cs, PSHACK, bytes);
+                IPHeader ip;
+                generateIPHeader(ip, (*cs).connection.src, (*cs).connection.dest, bytes);
+                packet.PushFrontHeader(ip);
+
+                TCPHeader tcp;
+                unsigned char flags;
+                SET_PSH(flags);
+                SET_ACK(flags);
+                generateTCPHeader(tcp, packet, (*cs).connection.srcport, (*cs).connection.destport, (*cs).state.last_acked, (*cs).state.last_recvd, flags, MSS);
+                packet.PushBackHeader(tcp);
+
                 MinetSend(mux, packet);
+
+                (*cs).state.last_sent = (*cs).state.last_acked + bytes;
 
                 socketReply.connection = socketRequest.connection;
                 socketReply.type = STATUS;
