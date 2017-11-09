@@ -586,7 +586,18 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
             if (connState == ESTABLISHED || connState == SYN_SENT1) {
                 unsigned int bytes = socketRequest.data.GetSize();
-                packet = Packet(socketRequest.data.ExtractFront(bytes));
+                TCPState *state = &cs->state;
+
+                if (bytes <= MSS) {
+                    state->SendBuffer.AddBack(socketRequest.data);
+                } else {
+                    bytes = MSS;
+                    Buffer partial = socketRequest.data.ExtractFront(bytes);
+                    state->SendBuffer.AddBack(partial);
+                }
+
+
+                packet = Packet(state->SendBuffer);
 
                 IPHeader ip;
                 generateIPHeader(ip, (*cs).connection.src, (*cs).connection.dest, bytes);
@@ -596,7 +607,8 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
                 unsigned char flags;
                 SET_PSH(flags);
                 SET_ACK(flags);
-                generateTCPHeader(tcp, packet, (*cs).connection.srcport, (*cs).connection.destport, (*cs).state.last_acked, (*cs).state.last_recvd, flags, MSS);
+                generateTCPHeader(tcp, packet, (*cs).connection.srcport, (*cs).connection.destport,
+                                  (*cs).state.last_acked, (*cs).state.last_recvd, flags, MSS);
                 packet.PushBackHeader(tcp);
 
                 MinetSend(mux, packet);
@@ -614,9 +626,6 @@ void socket_handler(const MinetHandle &mux, const MinetHandle &sock, ConnectionL
 
             break;
         case FORWARD:
-            socketReply.type = STATUS;
-            socketReply.error = EOK;
-            MinetSend(sock, socketReply);
             break;
         case CLOSE:
         {
