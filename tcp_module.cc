@@ -779,21 +779,22 @@ void timeout_handler(const MinetHandle& mux, const MinetHandle& sock, Connection
                 // Reset timer
                 m.timeout = Time() + 3;
 
-            } else if (m.state.GetState() == ESTABLISHED) {
+            } else {
+                Buffer b;
+                SockRequestResponse resp (CONNECT, m.connection, b, 0, ECONN_FAILED);
+             MinetSend(sock, resp);
+                connections.erase(it);
+            }
+        } else if (m.state.GetState() == ESTABLISHED) {
+            m.state.tmrTries--;
+            if (m.state.tmrTries > 0) {
                 cerr << "\nRETRANSMIT\n" << endl;
 
-                SockRequestResponse socketRequest;
-                SockRequestResponse socketReply;
                 Packet packet;
 
-                MinetReceive(sock, socketRequest);
-
-                unsigned int bytes = socketRequest.data.GetSize();
                 TCPState *state = &it->state;
 
-                state->SendBuffer.AddBack(socketRequest.data);
-
-                bytes = state->SendBuffer.GetSize();
+                unsigned int bytes = state->SendBuffer.GetSize();
                 if (bytes > MSS)
                     bytes = MSS;
 
@@ -817,24 +818,12 @@ void timeout_handler(const MinetHandle& mux, const MinetHandle& sock, Connection
 
                 (*it).state.last_sent = (*it).state.last_acked + bytes;
 
-                socketReply.connection = socketRequest.connection;
-                socketReply.type = STATUS;
-                socketReply.bytes = bytes;
-                socketReply.error = EOK;
-
-                MinetSend(sock, socketReply);
-
-
                 cerr << "\nSYN to " << m.connection.dest << "retransmitted\n";
 
                 // Reset timer
                 m.timeout = Time() + 3;
-            } else {
-                Buffer b;
-                SockRequestResponse resp (CONNECT, m.connection, b, 0, ECONN_FAILED);
-             MinetSend(sock, resp);
-                connections.erase(it);
             }
+
         }
 
         it = connections.FindEarliest();
