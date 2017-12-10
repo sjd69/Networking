@@ -1,7 +1,23 @@
+#include <climits>
 #include <map>
+#include <queue>
 #include <utility>
+#include <vector>
 
 #include "linkstate.h"
+
+struct PQEntry {
+    int node;
+    double latency;
+
+    PQEntry(int n, int l) : node(n), latency(l) {}
+};
+
+struct Comp {
+    bool operator() (const PQEntry& x, const PQEntry& y) const {
+        return x.latency > y.latency;
+    }
+};
 
 LinkState::LinkState(unsigned n, SimulationContext* c, double b, double l) :
     Node(n, c, b, l)
@@ -92,5 +108,52 @@ bool LinkState::UpdateGraph(int src, int dest, double latency) {
 }
 
 void LinkState::Dijkstra() {
-    // TODO
+    map<int, double>::iterator it;
+    priority_queue<PQEntry, vector<PQEntry>, Comp> pq;
+    int size = graph.rbegin()->first;
+    bool inc[size];
+    int via[size];
+    int cost[size];
+
+    // Initialize arrays
+    for (int i = 0; i < size; i++) {
+        if (i == number) {
+            inc[i] = 1;
+            via[i] = i;
+            cost[i] = 0;
+        } else {
+            inc[i] = 0;
+            via[i] = UINT_MAX;
+            cost[i] = INT_MAX;
+        }
+    }
+
+    // Initialize with our edges
+    map<int, double> &links = graph.find(number)->second;
+    for (it = links.begin(); it != links.end(); it++) {
+        via[it->first] = number;
+        cost[it->first] = it->second;
+        pq.push(PQEntry(it->first, it->second));
+    }
+
+    while (!pq.empty()) {
+        const PQEntry& e = pq.top();
+        int node = e.node;
+        double latency = e.latency;
+        pq.pop();
+
+        if (inc[node]) // If shortest path already found
+            continue;
+
+        inc[node] = 1;
+        links = graph.find(node)->second;
+        for (it = links.begin(); it != links.end(); it++) {
+            double newCost = cost[node] + it->second;
+            if (newCost < cost[it->first]) {
+                via[it->first] = number;
+                cost[it->first] = newCost;
+                pq.push(PQEntry(it->first, it->second));
+            }
+        }
+    }
 }
