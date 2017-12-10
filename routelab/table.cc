@@ -29,6 +29,10 @@ ostream & Table::Print(ostream &os) const
   os << "LinkState Table()";
   return os;
 }
+
+Table::Table() {
+    // TODO
+}
 #endif
 
 #if defined(DISTANCEVECTOR)

@@ -21,6 +21,9 @@ ostream &RoutingMessage::Print(ostream &os) const
 #endif
 
 #if defined(LINKSTATE)
+
+RoutingMessage::RoutingMessage(Link* l) : link(l) {}
+
 ostream &RoutingMessage::Print(ostream &os) const
 {
     os << "LinkState RoutingMessage()";
