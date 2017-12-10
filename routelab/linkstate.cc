@@ -56,7 +56,7 @@ void LinkState::LinkHasBeenUpdated(Link* l) {
 void LinkState::ProcessIncomingRoutingMessage(RoutingMessage *m) {
     cerr << *this << " got a routing message: " << *m << " (ignored)" << endl;
 
-    int sender = m->sender;
+    int sender = (*m).sender;
     Link& l = (*m).link;
     double latency = l.GetLatency();
     int src = l.GetSrc();
@@ -181,14 +181,13 @@ void LinkState::Dijkstra() {
 }
 
 void LinkState::SendMessage(int originalSender, Link& l) {
-    RoutingMessage m (this->number, l);
-    RoutingMessage *loc = &m;
+    RoutingMessage* m = new RoutingMessage(this->number, l);
 
     deque<Node*>* neighbors = GetNeighbors();
     deque<Node*>::iterator it = neighbors->begin();
     for (; it != neighbors->end(); it++)
         if (originalSender != (*it)->GetNumber()) {
-            cerr << "Sending: " << m << endl;
-            SendToNeighbor(*it, loc);
+            cerr << "Sending: " << *m << endl;
+            SendToNeighbor(*it, m);
         }
 }
