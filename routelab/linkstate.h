@@ -9,6 +9,7 @@ class LinkState: public Node {
         map<int, map<int, double> > graph;
         map<pair<int,int>, int> seen;
         map<pair<int, int>, int> current;
+        int maxNode;
 
     public:
         LinkState(unsigned, SimulationContext* , double, double);

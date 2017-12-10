@@ -21,7 +21,7 @@ struct Comp {
 };
 
 LinkState::LinkState(unsigned n, SimulationContext* c, double b, double l) :
-    Node(n, c, b, l)
+    Node(n, c, b, l), maxNode(number)
 {}
 
 LinkState::LinkState(const LinkState & rhs) :
@@ -44,6 +44,8 @@ void LinkState::LinkHasBeenUpdated(Link* l) {
 
     double latency = (*l).GetLatency();
     int dest = (*l).GetDest();
+
+    maxNode = max(maxNode, dest);
 
     //cerr << "Link data loaded" << endl;
 
@@ -89,6 +91,8 @@ void LinkState::ProcessIncomingRoutingMessage(RoutingMessage *m) {
     double latency = l.GetLatency();
     int src = l.GetSrc();
     int dest = l.GetDest();
+    maxNode = max(maxNode, src);
+    maxNode = max(maxNode, dest);
 
     if (UpdateGraph(src, dest, latency)) {
         Dijkstra();
@@ -163,7 +167,7 @@ void LinkState::Dijkstra() {
     map<int, double>::iterator it;
     priority_queue<PQEntry, vector<PQEntry>, Comp> pq;
     set<int> neighbors;
-    int size = (graph.rbegin()->first) + 1;
+    int size = maxNode + 1;
     bool inc[size];
     int via[size];
     int next[size];
@@ -203,7 +207,7 @@ void LinkState::Dijkstra() {
         double latency = e.latency;
         pq.pop();
 
-        if (inc[node]) // If shortest path already found
+        if (inc[node] == 1) // If shortest path already found
             continue;
 
         inc[node] = 1;
@@ -231,7 +235,7 @@ void LinkState::Dijkstra() {
             else {
                 int k = via[j];
                 set<int>::iterator it = neighbors.find(k);
-                cerr << "j = " << j << ",via = " << via[j] << ", inc = " << inc[j] << ", cost = " << cost[j] << endl;
+                cerr << "size = " << size << ", j = " << j << ",via = " << via[j] << ", inc = " << inc[j] << ", cost = " << cost[j] << endl;
                 for (; it == neighbors.end(); k = via[k], it = neighbors.find(k))
                     cerr << "k = " << k << endl;
                 next[j] = k;
