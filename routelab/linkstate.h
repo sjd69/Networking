@@ -7,6 +7,8 @@ class LinkState: public Node {
     private:
         // Anything you need in addition to Node members
         map<int, map<int, double> > graph;
+        map<pair<int,int>, int> seen;
+        map<pair<int, int>, int> current;
 
     public:
         LinkState(unsigned, SimulationContext* , double, double);

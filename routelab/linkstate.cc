@@ -49,14 +49,39 @@ void LinkState::LinkHasBeenUpdated(Link* l) {
     if (UpdateGraph(number, dest, latency)) {
         Dijkstra();
 
-        SendMessage(number, *l);
+        pair<int, int> p (number, dest);
+
+        int sequence;
+        map<pair<int, int>, int>::iterator it = current.find(p);
+        if (it == current.end()) {
+            sequence = 0;
+            pair<pair<int, int>, int> p2 (p, sequence);
+            current.insert(p2);
+        } else {
+            sequence = it->second;
+            it->second = sequence + 1;
+        }
+
+        SendToNeighbors(new RoutingMessage(p, sequence, *l));
+
     }
 }
 
 void LinkState::ProcessIncomingRoutingMessage(RoutingMessage *m) {
     cerr << *this << " got a routing message: " << *m << endl;
 
-    int sender = (*m).sender;
+    pair<int,int> originator = (*m).originator;
+    int sequence = (*m).sequence;
+    map<pair<int,int>, int>::iterator it = seen.find(originator);
+    if (originator.first == number)
+        return;
+    else if (it == seen.end()) {
+        pair<pair<int, int>, int> p (originator, sequence);
+        seen.insert(p);
+    } else if (sequence <= it->second)
+        return;
+    it->second = sequence;
+
     Link& l = (*m).link;
     double latency = l.GetLatency();
     int src = l.GetSrc();
@@ -65,7 +90,7 @@ void LinkState::ProcessIncomingRoutingMessage(RoutingMessage *m) {
     if (UpdateGraph(src, dest, latency)) {
         Dijkstra();
 
-        SendMessage(sender, l);
+        SendToNeighbors(m);
     }
 }
 
@@ -192,7 +217,7 @@ void LinkState::Dijkstra() {
     routing_table.setTable(number, inc, via, cost, size);
 }
 
-void LinkState::SendMessage(int originalSender, Link& l) {
+/*void LinkState::SendMessage(int originalSender, Link& l) {
     RoutingMessage* m = new RoutingMessage(this->number, l);
 
     deque<Node*>* neighbors = GetNeighbors();
@@ -201,4 +226,4 @@ void LinkState::SendMessage(int originalSender, Link& l) {
         if (originalSender != (*it)->GetNumber()) {
             SendToNeighbor(*it, m);
         }
-}
+}*/

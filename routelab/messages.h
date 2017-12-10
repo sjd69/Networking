@@ -15,8 +15,9 @@ struct RoutingMessage {
     // Anything else you need
 
     #if defined(LINKSTATE)
-        RoutingMessage(int, Link& l);
-        int sender;
+        RoutingMessage(pair<int, int>, int, Link& l);
+        pair<int, int> originator;
+        int sequence;
         Link link;
     #endif
     #if defined(DISTANCEVECTOR)
