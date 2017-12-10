@@ -47,7 +47,7 @@ class Table {
 
         #if defined(LINKSTATE)
 
-        void setTable(bool*, int*, double*, int);
+        void setTable(int, bool*, int*, double*, int);
         int getNextHop(int dest);
 
         #endif

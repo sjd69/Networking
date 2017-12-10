@@ -77,6 +77,8 @@ Node* LinkState::GetNextHop(Node *destination) {
     int dest = destination->GetNumber();
     int next = routing_table.getNextHop(dest);
 
+    cerr << dest << ": " << next << endl;
+
     deque<Node*> *nodes = GetNeighbors();
     deque<Node*>::iterator it;
     for (it = nodes->begin(); it != nodes->end(); it++)
@@ -176,7 +178,7 @@ void LinkState::Dijkstra() {
             for (it = links.begin(); it != links.end(); it++) {
                 double newCost = cost[node] + it->second;
                 if (newCost < cost[it->first]) {
-                    via[it->first] = number;
+                    via[it->first] = node;
                     cost[it->first] = newCost;
                     pq.push(PQEntry(it->first, it->second));
                 }
@@ -184,7 +186,7 @@ void LinkState::Dijkstra() {
         }
     }
 
-    routing_table.setTable(inc, via, cost, size);
+    routing_table.setTable(number, inc, via, cost, size);
 }
 
 void LinkState::SendMessage(int originalSender, Link& l) {

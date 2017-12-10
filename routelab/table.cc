@@ -26,7 +26,11 @@ Table::Table() {
 #if defined(LINKSTATE)
 ostream & Table::Print(ostream &os) const
 {
-  os << "LinkState Table()";
+  os << "LinkState Table(";
+  map<int, int>::const_iterator it = via.begin();
+  for (; it != via.end(); it++)
+    os << it->first << ":" << it->second << ",";
+  os << ")" << endl;
   return os;
 }
 
@@ -34,7 +38,7 @@ Table::Table() {
     topo.clear();
 }
 
-void Table::setTable(bool* inc, int* viaA, double* costA, int size) {
+void Table::setTable(int origin, bool* inc, int* viaA, double* costA, int size) {
     int i;
 
     via.clear();
@@ -42,7 +46,8 @@ void Table::setTable(bool* inc, int* viaA, double* costA, int size) {
 
     for (i = 0; i < size; i++) {
         if (inc[i]) {
-            pair<int, int> viaPair (i, viaA[i]);
+            pair<int, int> viaPair (i,
+                viaA[i] == origin ? i : viaA[i]);
             pair<int, double> costPair (i, costA[i]);
             via.insert(viaPair);
             cost.insert(costPair);
