@@ -28,6 +28,13 @@ struct TopoLink {
 class Table {
     private:
 
+        #if defined(LINKSTATE)
+
+        map<int, int> via;
+        map<int, double> cost;
+
+        #endif
+
     public:
         Table();
         Table(const Table &);
@@ -39,9 +46,10 @@ class Table {
         map < int, map < int, TopoLink > > topo;
 
         #if defined(LINKSTATE)
-            map <int, int> topoMap;
 
-            bool topoMapChanged;
+        void setTable(bool*, int*, double*, int);
+        int getNextHop(int dest);
+
         #endif
 
         #if defined(DISTANCEVECTOR)

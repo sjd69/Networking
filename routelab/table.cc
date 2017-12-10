@@ -31,8 +31,29 @@ ostream & Table::Print(ostream &os) const
 }
 
 Table::Table() {
-    // TODO
+    topo.clear();
 }
+
+void Table::setTable(bool* inc, int* viaA, double* costA, int size) {
+    int i;
+
+    via.clear();
+    cost.clear();
+
+    for (i = 0; i < size; i++) {
+        if (inc[i]) {
+            pair<int, int> viaPair (i, viaA[i]);
+            pair<int, double> costPair (i, costA[i]);
+            via.insert(viaPair);
+            cost.insert(costPair);
+        }
+    }
+}
+
+int Table::getNextHop(int dest) {
+    return via[dest];
+}
+
 #endif
 
 #if defined(DISTANCEVECTOR)

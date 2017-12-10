@@ -54,16 +54,13 @@ void LinkState::LinkHasBeenUpdated(Link* l) {
 }
 
 void LinkState::ProcessIncomingRoutingMessage(RoutingMessage *m) {
-    cerr << *this << " got a routing message: " << *m << " (ignored)" << endl;
+    cerr << *this << " got a routing message: " << *m << endl;
 
     int sender = (*m).sender;
     Link& l = (*m).link;
     double latency = l.GetLatency();
     int src = l.GetSrc();
     int dest = l.GetDest();
-
-    cerr << "Pulled out all data" << endl;
-    cerr << "Received: " << *m << endl;
 
     if (UpdateGraph(src, dest, latency)) {
         Dijkstra();
@@ -77,11 +74,19 @@ void LinkState::TimeOut() {
 }
 
 Node* LinkState::GetNextHop(Node *destination) {
+    int dest = destination->GetNumber();
+    int next = routing_table.getNextHop(dest);
+
+    deque<Node*> *nodes = GetNeighbors();
+    deque<Node*>::iterator it;
+    for (it = nodes->begin(); it != nodes->end(); it++)
+        if ((*it)->GetNumber() == next)
+            return *it;
     return NULL;
 }
 
 Table* LinkState::GetRoutingTable() {
-    return NULL;
+    return &routing_table;
 }
 
 ostream & LinkState::Print(ostream &os) const {
@@ -127,7 +132,7 @@ void LinkState::Dijkstra() {
     int size = (graph.rbegin()->first) + 1;
     bool inc[size];
     int via[size];
-    int cost[size];
+    double cost[size];
 
     // Initialize arrays
     for (int i = 0; i < size; i++) {
@@ -178,6 +183,8 @@ void LinkState::Dijkstra() {
             }
         }
     }
+
+    routing_table.setTable(inc, via, cost, size);
 }
 
 void LinkState::SendMessage(int originalSender, Link& l) {
@@ -187,7 +194,6 @@ void LinkState::SendMessage(int originalSender, Link& l) {
     deque<Node*>::iterator it = neighbors->begin();
     for (; it != neighbors->end(); it++)
         if (originalSender != (*it)->GetNumber()) {
-            cerr << "Sending: " << *m << endl;
             SendToNeighbor(*it, m);
         }
 }
