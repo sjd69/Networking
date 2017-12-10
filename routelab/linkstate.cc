@@ -77,7 +77,10 @@ Node* LinkState::GetNextHop(Node *destination) {
     int dest = destination->GetNumber();
     int next = routing_table.getNextHop(dest);
 
-    cerr << dest << ": " << next << endl;
+    cerr << number << " to " << dest << ": " << next << endl;
+
+    if (dest == next)
+        return destination;
 
     deque<Node*> *nodes = GetNeighbors();
     deque<Node*>::iterator it;

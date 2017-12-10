@@ -56,7 +56,13 @@ void Table::setTable(int origin, bool* inc, int* viaA, double* costA, int size) 
 }
 
 int Table::getNextHop(int dest) {
-    return via[dest];
+    map<int, int>::iterator it = via.find(dest);
+    if (it != via.end())
+        return it->second;
+    else {
+        cerr << "ERROR: Unmapped";
+        return 0;
+    }
 }
 
 #endif
