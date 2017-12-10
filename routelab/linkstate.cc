@@ -52,8 +52,6 @@ void LinkState::LinkHasBeenUpdated(Link* l) {
     if (UpdateGraph(number, dest, latency)) {
         Dijkstra();
 
-        cerr << "Got past Dijkstra's" << endl;
-
         pair<int, int> p (number, dest);
 
         int sequence;
@@ -108,8 +106,6 @@ void LinkState::TimeOut() {
 Node* LinkState::GetNextHop(Node *destination) {
     int dest = destination->GetNumber();
     int next = routing_table.getNextHop(dest);
-
-    cerr << number << " to " << dest << ": " << next << endl;
 
     if (dest == next)
         return destination;
@@ -167,7 +163,7 @@ void LinkState::Dijkstra() {
     map<int, double>::iterator it;
     priority_queue<PQEntry, vector<PQEntry>, Comp> pq;
     set<int> neighbors;
-    int size = maxNode + 1;
+    int size = max(maxNode, graph.rbegin()->first) + 1;
     bool inc[size];
     int via[size];
     int next[size];
@@ -198,8 +194,6 @@ void LinkState::Dijkstra() {
         }
     }
 
-    cerr << "Made it past initialization" << endl;
-
     // Dijkstra's algorithm
     while (!pq.empty()) {
         const PQEntry& e = pq.top();
@@ -225,8 +219,6 @@ void LinkState::Dijkstra() {
         }
     }
 
-    cerr << "Made it past shortest path" << endl;
-
     // Getting next hop
     for (int j = 0; j < size; j++) {
         if (inc[j]) {
@@ -235,15 +227,13 @@ void LinkState::Dijkstra() {
             else {
                 int k = via[j];
                 set<int>::iterator it = neighbors.find(k);
-                cerr << "size = " << size << ", j = " << j << ",via = " << via[j] << ", inc = " << inc[j] << ", cost = " << cost[j] << endl;
-                for (; it == neighbors.end(); k = via[k], it = neighbors.find(k))
-                    cerr << "k = " << k << endl;
+                //cerr << "j = " << j << ",via = " << via[j] << ", inc = " << inc[j] << ", cost = " << cost[j] << endl;
+                for (; it == neighbors.end(); k = via[k], it = neighbors.find(k));
                 next[j] = k;
+
             }
         }
     }
-
-    cerr << "Made it past next hop" << endl;
 
     routing_table.setTable(number, inc, next, cost, size);
 }
