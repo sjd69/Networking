@@ -15,8 +15,9 @@ struct RoutingMessage {
     // Anything else you need
 
     #if defined(LINKSTATE)
-        RoutingMessage(Link* l);
-        Link* link;
+        RoutingMessage(int, Link& l);
+        int sender;
+        Link link;
     #endif
     #if defined(DISTANCEVECTOR)
         RoutingMessage(int sender, map <int, TopoLink> dv);

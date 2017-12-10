@@ -22,11 +22,11 @@ ostream &RoutingMessage::Print(ostream &os) const
 
 #if defined(LINKSTATE)
 
-RoutingMessage::RoutingMessage(Link* l) : link(l) {}
+RoutingMessage::RoutingMessage(int s, Link& l) : sender(s), link(l) {}
 
 ostream &RoutingMessage::Print(ostream &os) const
 {
-    os << "LinkState RoutingMessage()";
+    os << "LinkState RoutingMessage(" << sender << "," << link.GetSrc() << "," << link.GetDest() << "," << link.GetLatency() << ")";
     return os;
 }
 #endif

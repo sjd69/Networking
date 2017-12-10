@@ -44,23 +44,31 @@ void LinkState::LinkHasBeenUpdated(Link* l) {
     double latency = (*l).GetLatency();
     int dest = (*l).GetDest();
 
+    //cerr << "Link data loaded" << endl;
+
     if (UpdateGraph(number, dest, latency)) {
         Dijkstra();
-        SendToNeighbors(new RoutingMessage(l));
+
+        SendMessage(number, *l);
     }
 }
 
 void LinkState::ProcessIncomingRoutingMessage(RoutingMessage *m) {
     cerr << *this << " got a routing message: " << *m << " (ignored)" << endl;
 
-    Link* l = m->link;
-    double latency = (*l).GetLatency();
-    int src = (*l).GetSrc();
-    int dest = (*l).GetDest();
+    int sender = m->sender;
+    Link& l = (*m).link;
+    double latency = l.GetLatency();
+    int src = l.GetSrc();
+    int dest = l.GetDest();
+
+    cerr << "Pulled out all data" << endl;
+    cerr << "Received: " << *m << endl;
 
     if (UpdateGraph(src, dest, latency)) {
         Dijkstra();
-        SendToNeighbors(new RoutingMessage(*m));
+
+        SendMessage(sender, l);
     }
 }
 
@@ -91,7 +99,12 @@ bool LinkState::UpdateGraph(int src, int dest, double latency) {
         if (i != links.end()) { // If a link exists for this pair
             double old = i->second;
             i->second = latency;
-            return old != latency;
+            //cerr << "(" << src << ", " << dest << "): " << latency << endl;
+            //cerr << old << " vs. " << latency << endl;
+            if (old == latency)
+                return 0;
+            else
+                return 1;
         } else { // If no link exists for this pair
             pair<int, double> newPair(dest, latency);
             links.insert(newPair);
@@ -108,9 +121,10 @@ bool LinkState::UpdateGraph(int src, int dest, double latency) {
 }
 
 void LinkState::Dijkstra() {
+    map<int, map<int, double> >::iterator i;
     map<int, double>::iterator it;
     priority_queue<PQEntry, vector<PQEntry>, Comp> pq;
-    int size = graph.rbegin()->first;
+    int size = (graph.rbegin()->first) + 1;
     bool inc[size];
     int via[size];
     int cost[size];
@@ -129,12 +143,17 @@ void LinkState::Dijkstra() {
     }
 
     // Initialize with our edges
-    map<int, double> &links = graph.find(number)->second;
-    for (it = links.begin(); it != links.end(); it++) {
-        via[it->first] = number;
-        cost[it->first] = it->second;
-        pq.push(PQEntry(it->first, it->second));
+    i = graph.find(number);
+    if (i != graph.end()) {
+        map<int, double> &links = i->second;
+        for (it = links.begin(); it != links.end(); it++) {
+            via[it->first] = number;
+            cost[it->first] = it->second;
+            pq.push(PQEntry(it->first, it->second));
+        }
     }
+
+    //cerr << "Passed initialization" << endl;
 
     while (!pq.empty()) {
         const PQEntry& e = pq.top();
@@ -146,14 +165,30 @@ void LinkState::Dijkstra() {
             continue;
 
         inc[node] = 1;
-        links = graph.find(node)->second;
-        for (it = links.begin(); it != links.end(); it++) {
-            double newCost = cost[node] + it->second;
-            if (newCost < cost[it->first]) {
-                via[it->first] = number;
-                cost[it->first] = newCost;
-                pq.push(PQEntry(it->first, it->second));
+        i = graph.find(node);
+        if (i != graph.end()) {
+            map<int, double> &links = i->second;
+            for (it = links.begin(); it != links.end(); it++) {
+                double newCost = cost[node] + it->second;
+                if (newCost < cost[it->first]) {
+                    via[it->first] = number;
+                    cost[it->first] = newCost;
+                    pq.push(PQEntry(it->first, it->second));
+                }
             }
         }
     }
+}
+
+void LinkState::SendMessage(int originalSender, Link& l) {
+    RoutingMessage m (this->number, l);
+    RoutingMessage *loc = &m;
+
+    deque<Node*>* neighbors = GetNeighbors();
+    deque<Node*>::iterator it = neighbors->begin();
+    for (; it != neighbors->end(); it++)
+        if (originalSender != (*it)->GetNumber()) {
+            cerr << "Sending: " << m << endl;
+            SendToNeighbor(*it, loc);
+        }
 }

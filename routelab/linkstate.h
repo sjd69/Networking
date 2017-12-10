@@ -7,7 +7,7 @@ class LinkState: public Node {
     private:
         // Anything you need in addition to Node members
         map<int, map<int, double> > graph;
-        
+
     public:
         LinkState(unsigned, SimulationContext* , double, double);
         LinkState(const LinkState &);
@@ -25,6 +25,7 @@ class LinkState: public Node {
         // Anything else
         void Dijkstra();
         bool UpdateGraph(int src, int dest, double latency);
+        void SendMessage(int sender, Link& l);
 };
 
 inline ostream & operator<<(ostream & os, const LinkState & n) {
