@@ -1,6 +1,7 @@
 #include <climits>
 #include <map>
 #include <queue>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -48,6 +49,8 @@ void LinkState::LinkHasBeenUpdated(Link* l) {
 
     if (UpdateGraph(number, dest, latency)) {
         Dijkstra();
+
+        cerr << "Got past Dijkstra's" << endl;
 
         pair<int, int> p (number, dest);
 
@@ -159,9 +162,11 @@ void LinkState::Dijkstra() {
     map<int, map<int, double> >::iterator i;
     map<int, double>::iterator it;
     priority_queue<PQEntry, vector<PQEntry>, Comp> pq;
+    set<int> neighbors;
     int size = (graph.rbegin()->first) + 1;
     bool inc[size];
     int via[size];
+    int next[size];
     double cost[size];
 
     // Initialize arrays
@@ -182,14 +187,16 @@ void LinkState::Dijkstra() {
     if (i != graph.end()) {
         map<int, double> &links = i->second;
         for (it = links.begin(); it != links.end(); it++) {
+            neighbors.insert(it->first);
             via[it->first] = number;
             cost[it->first] = it->second;
             pq.push(PQEntry(it->first, it->second));
         }
     }
 
-    //cerr << "Passed initialization" << endl;
+    cerr << "Made it past initialization" << endl;
 
+    // Dijkstra's algorithm
     while (!pq.empty()) {
         const PQEntry& e = pq.top();
         int node = e.node;
@@ -214,7 +221,27 @@ void LinkState::Dijkstra() {
         }
     }
 
-    routing_table.setTable(number, inc, via, cost, size);
+    cerr << "Made it past shortest path" << endl;
+
+    // Getting next hop
+    for (int j = 0; j < size; j++) {
+        if (inc[j]) {
+            if (via[j] == number)
+                next[j] = j;
+            else {
+                int k = via[j];
+                set<int>::iterator it = neighbors.find(k);
+                cerr << "j = " << j << ",via = " << via[j] << ", inc = " << inc[j] << ", cost = " << cost[j] << endl;
+                for (; it == neighbors.end(); k = via[k], it = neighbors.find(k))
+                    cerr << "k = " << k << endl;
+                next[j] = k;
+            }
+        }
+    }
+
+    cerr << "Made it past next hop" << endl;
+
+    routing_table.setTable(number, inc, next, cost, size);
 }
 
 /*void LinkState::SendMessage(int originalSender, Link& l) {

@@ -30,7 +30,7 @@ ostream & Table::Print(ostream &os) const
   map<int, int>::const_iterator it = via.begin();
   for (; it != via.end(); it++)
     os << it->first << ":" << it->second << ",";
-  os << ")" << endl;
+  os << ")";
   return os;
 }
 
@@ -46,8 +46,7 @@ void Table::setTable(int origin, bool* inc, int* viaA, double* costA, int size) 
 
     for (i = 0; i < size; i++) {
         if (inc[i]) {
-            pair<int, int> viaPair (i,
-                viaA[i] == origin ? i : viaA[i]);
+            pair<int, int> viaPair (i, viaA[i]);
             pair<int, double> costPair (i, costA[i]);
             via.insert(viaPair);
             cost.insert(costPair);
